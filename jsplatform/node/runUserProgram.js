@@ -1,3 +1,27 @@
+/*
+usage: node runUserProgram.js programCode testCases
+
+programCode is a string containing *the definition of a function* that is to be evaluated against certain inputs
+testCases is an array of objects where each object has the following attributes:
+{
+    id: Number,
+    input: String
+}
+
+the id uniquely identifies a test case and is used by Django to maintain the proper relationships between data models
+the input string contains the arguments that the function is to be evaluated with, separated by 
+! choose a proper separator
+
+output: an array printed to the console (and collected by Django via subprocess.check_output()) where each entry 
+corresponds to a test case and is an object:
+{ 
+    id: Number,
+    output: String
+} 
+where id is the id of the test case and the output string is the return value of the user function when ran with that input
+*/
+
+
 // The VM2 module allows to execute arbitrary code safely using a sandboxed, secure virtual machine
 const {VM} = require('vm2')
 
