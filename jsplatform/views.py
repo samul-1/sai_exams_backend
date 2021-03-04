@@ -25,6 +25,8 @@ class StaffSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
     to a specific exercise
     """
 
+    # ! staff permissions
+
     def get_queryset(self):
         exercise_id = self.kwargs["exercise_id"]
         exercise = get_object_or_404(Exercise, pk=exercise_id)
@@ -47,6 +49,8 @@ class UserSubmissionViewSet(viewsets.ModelViewSet):
     A viewset for listing, retrieving, and creating submissions to
     a specific exercise from the requesting user
     """
+
+    # TODO add throttle to limit rate of submission
 
     serializer_class = SubmissionSerializer
 
@@ -75,6 +79,7 @@ class FullExerciseViewSet(viewsets.ModelViewSet):
     A staff-only viewset for viewing, creating, and editing exercises
     """
 
+    #! staff permissions
     serializer_class = FullExerciseSerializer
     queryset = Exercise.objects.all()
 

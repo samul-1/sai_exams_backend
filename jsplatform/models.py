@@ -13,6 +13,10 @@ from .utils import run_code_in_vm
 
 
 class Exercise(models.Model):
+    """
+    An exercise, with an assignment text
+    """
+
     text = models.TextField()
     created = models.DateTimeField(auto_now_add=True)
     min_passing_testcases = models.PositiveIntegerField(default=0)
@@ -28,6 +32,13 @@ class Exercise(models.Model):
 
 
 class TestCase(models.Model):
+    """
+    A TestCase for an exercise
+
+    User-submitted code is ran using inputs from test cases and its output is compared against
+    the test cases'
+    """
+
     exercise = models.ForeignKey(
         Exercise, on_delete=models.CASCADE, related_name="testcases"
     )
@@ -42,6 +53,14 @@ class TestCase(models.Model):
 
 
 class Submission(models.Model):
+    """
+    A program that was submitted by a user
+
+    Once created, the code in a submission is ran in node against the exercise test cases
+    and the output is saved to a JSONField, determining if the submission passes enough test
+    cases to be eligible for turning in
+    """
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     exercise = models.ForeignKey(
         Exercise, on_delete=models.CASCADE, related_name="submissions"
@@ -59,6 +78,8 @@ class Submission(models.Model):
 
     # True if marked by user as their final submission
     has_been_turned_in = models.BooleanField(default=False)
+
+    # TODO add constraint to make sure there isn't more than one turned in submission per exercise per user
 
     def __str__(self):
         return self.code
@@ -98,7 +119,7 @@ class Submission(models.Model):
 
         self.details = outcome
 
-        # determine if enough test cases were passed and add that info to the JSON details
+        # determine if the submission is eligible for turning in based on how many tests it passed
         self.is_eligible = passed_testcases >= self.exercise.min_passing_testcases
         self.save()
 
