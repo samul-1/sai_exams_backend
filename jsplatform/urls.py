@@ -37,12 +37,16 @@ public_exercise_details = views.PublicExerciseViewSet.as_view(
 
 urlpatterns = [
     path("", include(router.urls)),
-    # path("evaluate/", views.evaluate_program, name="evaluate"),
     path("exercises/<int:pk>/", public_exercise_details, name="exercises"),
     path(
         "submissions/<int:exercise_id>/",
         user_submissions,
         name="user-submissions",
+    ),
+    path(
+        "submissions/turn_in/<int:submission_id>/",
+        views.TurnIn.as_view(),
+        name="turn-in",
     ),
     path(
         "staff/submissions/<int:exercise_id>/",

@@ -63,7 +63,7 @@ const userProgram = process.argv[2]
 const testCases = JSON.parse(process.argv[3])
 
 // will hold a list of test cases ran together with the given outputs
-const outcome = []
+const outcome = {}
 
 for(const testCase of testCases) {
     // todo see if you can use a better split regex than \s
@@ -71,27 +71,35 @@ for(const testCase of testCases) {
     paramString = listToCSVString(parameters) // get param string to append to function name
 
     const userProgramRunnable = functionToRunnable(userProgram, paramString)
-    let res
+    let output
     try {
         // console.log(`RUNNABLE:\n ${userProgramRunnable}\n END RUNNABLE`)
 
         // run user program against test case input
-        res = safevm.run(userProgramRunnable)
+        output = safevm.run(userProgramRunnable)
         // if program returns undefined, use "undefined" (string) to mark that result, as you can't have
         // and object's property set to undefined and stringify it (property won't show up at all)
-        // todo see if you can just omit res property when a program returns undefined
-        res = typeof(res) == "undefined" ? "undefined" : res
+        // todo see if you can just omit output property when a program returns undefined
+        output = typeof(output) == "undefined" ? "undefined" : output
 
         // push test case details to output list
-        outcome.push({
+        // outcome.push({
+        //     parameters,
+        //     output,
+        // })
+        outcome[testCase.id] = {
             parameters,
-            res,
-        })
+            output,
+        }
     } catch(error) {
-        outcome.push({
+        // outcome.push({
+        //     parameters,
+        //     error: stringifyError(error, null, ' '),
+        // })
+        outcome[testCase.id] = {
             parameters,
             error: stringifyError(error, null, ' '),
-        })
+        }
         // console.log(error)
     }
 }

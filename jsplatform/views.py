@@ -4,13 +4,12 @@ import subprocess
 from django.contrib.auth.models import User
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
-
-#!
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
+from .exceptions import NotEligibleForTurningIn
 from .models import Exercise, Submission, TestCase
 from .serializers import (
     FullExerciseSerializer,
@@ -23,7 +22,7 @@ from .serializers import (
 class StaffSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     A staff-only, read-only viewset for listing and retrieving user submissions
-     to a specific exercise
+    to a specific exercise
     """
 
     def get_queryset(self):
@@ -45,7 +44,7 @@ class StaffSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
 
 class UserSubmissionViewSet(viewsets.ModelViewSet):
     """
-    A read-only viewset for listing and retrieving submissions to
+    A viewset for listing, retrieving, and creating submissions to
     a specific exercise from the requesting user
     """
 
@@ -90,30 +89,21 @@ class PublicExerciseViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Exercise.objects.all()
 
 
-# -----------------------------------------------------------
-@csrf_exempt  #!
-@api_view(["POST"])
-def evaluate_program(request):
-    # if request.method == "GET":
-    program = request.data  # ! handle post data better
-    print(program)
+class TurnIn(APIView):
+    """
+    Accessed via POST by a user to turn in an eligible submission they have previously
+    created with UserSubmissionViewSet
+    """
 
-    #    program = "function max(a) { return a.map(r=>r.nick!=='aaa' )}"
-    #    test_cases = [
-    #     {
-    #         "input": "[{username: 'john', age: 22, nick: 'aaa'}, {username: 'alice', age: 32, nick: 'bb'}]"
-    #     }
-    # ]
+    def post(self, request, submission_id):
+        """
+        Calls turn_in() on specified submission
+        """
+        submission = get_object_or_404(Submission, pk=submission_id)
 
-    test_cases = [{"input": "1%%2"}, {"input": "-1%%0"}, {"input": "22%%2"}]
+        try:
+            submission.turn_in()
+        except NotEligibleForTurningIn:
+            return Response(status=403)
 
-    res = subprocess.check_output(
-        [
-            "node",
-            "jsplatform/node/runUserProgram.js",
-            program,
-            json.dumps(test_cases),
-        ]
-    )
-    res = json.loads(res)
-    return HttpResponse(res)
+        return Response(status=200)

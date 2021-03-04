@@ -76,7 +76,15 @@ class SubmissionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Submission
-        fields = ["text", "timestamp"]
+        fields = [
+            "id",
+            "code",
+            "timestamp",
+            "details",
+            "is_eligible",
+            "has_been_turned_in",
+        ]
+        read_only_fields = ["details", "is_eligible", "has_been_turned_in"]
 
     def create(self, validated_data):
         submission = Submission.objects.create(**validated_data)
