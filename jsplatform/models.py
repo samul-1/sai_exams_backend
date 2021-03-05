@@ -4,12 +4,16 @@ import subprocess
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.db.models import JSONField
 
 from .exceptions import NotEligibleForTurningIn, SubmissionAlreadyTurnedIn
 from .utils import run_code_in_vm
+
+
+class User(AbstractUser):
+    is_teacher = models.BooleanField(default=False)
 
 
 class Exercise(models.Model):
@@ -154,9 +158,14 @@ class Submission(models.Model):
         self.save()
 
     def turn_in(self):
-        if not self.is_eligible:
+        if (
+            not self.is_eligible
+            or self.exercise.submissions.filter(
+                user=self.user, has_been_turned_in=True
+            ).count()
+            > 0
+        ):
             raise NotEligibleForTurningIn
 
-        if not self.has_been_turned_in:
-            self.has_been_turned_in = True
-            self.save()
+        self.has_been_turned_in = True
+        self.save()

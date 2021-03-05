@@ -17,13 +17,14 @@ class TestCaseSerializer(serializers.ModelSerializer):
 
 class ExerciseSerializer(serializers.ModelSerializer):
     """
-    A serializer for Exercise model showing both public and secret test cases
+    A serializer for Exercise model, which can conditionally show either all test cases
+    or public test cases only for the exercise
     """
 
     def __init__(self, *args, staff=True, **kwargs):
         super(ExerciseSerializer, self).__init__(*args, **kwargs)
 
-        if staff:
+        if self.context["request"].user.is_teacher:
             self.fields["testcases"] = TestCaseSerializer(many=True)
         else:
             # only show public test cases to non-staff users
@@ -33,7 +34,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Exercise
-        fields = ["text"]
+        fields = ["id", "text"]
 
     def create(self, validated_data):
         testcases = validated_data.pop("testcases")
@@ -68,13 +69,13 @@ class ExerciseSerializer(serializers.ModelSerializer):
 class SubmissionSerializer(serializers.ModelSerializer):
     """
     A serializer for Submission model showing the submitted code, the timestamp, and the
-    outcome of the submission regarding the test cases
+    details of the submission regarding the test cases
     """
 
-    def __init__(self, *args, staff=True, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(SubmissionSerializer, self).__init__(*args, **kwargs)
 
-        if staff:
+        if self.context["request"].user.is_teacher:
             self.fields["details"] = serializers.JSONField(read_only=True)
         else:
             # only show public test case details to non-staff users

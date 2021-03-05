@@ -27,6 +27,16 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+AUTH_USER_MODEL = "jsplatform.User"
+
+REST_FRAMEWORK = {
+    "DEFAULT_THROTTLE_RATES": {
+        "burst": "",
+        # empty because the parse_rate() method is overridden in UserSubmissionThrottle to allow
+        # 1 request every 30 seconds
+    },
+}
+
 
 # Application definition
 
