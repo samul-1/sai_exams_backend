@@ -15,28 +15,25 @@ class TestCaseSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
 
 
-class PublicExerciseSerializer(serializers.ModelSerializer):
-    """
-    A serializer for Exercise model showing only the public test cases
-    """
-
-    public_testcases = TestCaseSerializer(many=True)
-
-    class Meta:
-        model = Exercise
-        fields = ["id", "text", "public_testcases"]
-
-
-class FullExerciseSerializer(serializers.ModelSerializer):
+class ExerciseSerializer(serializers.ModelSerializer):
     """
     A serializer for Exercise model showing both public and secret test cases
     """
 
-    testcases = TestCaseSerializer(many=True)
+    def __init__(self, *args, staff=True, **kwargs):
+        super(ExerciseSerializer, self).__init__(*args, **kwargs)
+
+        if staff:
+            self.fields["testcases"] = TestCaseSerializer(many=True)
+        else:
+            # only show public test cases to non-staff users
+            self.fields["public_testcases"] = TestCaseSerializer(
+                many=True, read_only=True
+            )
 
     class Meta:
         model = Exercise
-        fields = ["text", "testcases"]
+        fields = ["text"]
 
     def create(self, validated_data):
         testcases = validated_data.pop("testcases")
@@ -54,7 +51,7 @@ class FullExerciseSerializer(serializers.ModelSerializer):
         testcases_data = validated_data.pop("testcases")
 
         # update Exercise instance
-        instance = super(FullExerciseSerializer, self).update(instance, validated_data)
+        instance = super(ExerciseSerializer, self).update(instance, validated_data)
 
         testcases = list(instance.testcases.all())
         # update each test case
@@ -74,42 +71,26 @@ class SubmissionSerializer(serializers.ModelSerializer):
     outcome of the submission regarding the test cases
     """
 
-    class Meta:
-        model = Submission
-        fields = [
-            "id",
-            "code",
-            "timestamp",
-            "details",
-            "is_eligible",
-            "has_been_turned_in",
-        ]
-        read_only_fields = ["details", "is_eligible", "has_been_turned_in"]
+    def __init__(self, *args, staff=True, **kwargs):
+        super(SubmissionSerializer, self).__init__(*args, **kwargs)
 
-    def create(self, validated_data):
-        submission = Submission.objects.create(**validated_data)
-
-        return submission
-
-
-class PublicSubmissionSerializer(serializers.ModelSerializer):
-    """
-    A serializer for Submission model showing the submitted code, the timestamp, and the
-    outcome of the submission regarding the *public* test cases, and the number of failed
-    secret test cases
-    """
+        if staff:
+            self.fields["details"] = serializers.JSONField(read_only=True)
+        else:
+            # only show public test case details to non-staff users
+            self.fields["public_details"] = serializers.JSONField(read_only=True)
 
     class Meta:
         model = Submission
         fields = [
             "id",
+            "user",
             "code",
             "timestamp",
-            "public_details",
             "is_eligible",
             "has_been_turned_in",
         ]
-        read_only_fields = ["details", "is_eligible", "has_been_turned_in"]
+        read_only_fields = ["is_eligible", "user", "has_been_turned_in"]
 
     def create(self, validated_data):
         submission = Submission.objects.create(**validated_data)
