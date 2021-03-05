@@ -90,3 +90,28 @@ class SubmissionSerializer(serializers.ModelSerializer):
         submission = Submission.objects.create(**validated_data)
 
         return submission
+
+
+class PublicSubmissionSerializer(serializers.ModelSerializer):
+    """
+    A serializer for Submission model showing the submitted code, the timestamp, and the
+    outcome of the submission regarding the *public* test cases, and the number of failed
+    secret test cases
+    """
+
+    class Meta:
+        model = Submission
+        fields = [
+            "id",
+            "code",
+            "timestamp",
+            "public_details",
+            "is_eligible",
+            "has_been_turned_in",
+        ]
+        read_only_fields = ["details", "is_eligible", "has_been_turned_in"]
+
+    def create(self, validated_data):
+        submission = Submission.objects.create(**validated_data)
+
+        return submission

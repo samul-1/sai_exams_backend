@@ -84,6 +84,29 @@ class Submission(models.Model):
     def __str__(self):
         return self.code
 
+    def public_details(self):
+        """
+        Returns a subset of the details field dict containing information about public tests only,
+        and the number of secret tests that were failed
+        """
+
+        # filter for public tests only
+        dict = {
+            id: details for id, details in self.details.items() if details["is_public"]
+        }
+
+        failed_secret_tests = len(
+            {
+                id: details
+                for id, details in self.details.items()
+                if not details["is_public"] and not details["passed"]
+            }.keys()
+        )
+
+        dict["failed_secret_tests"] = failed_secret_tests
+
+        return dict
+
     def save(self, *args, **kwargs):
         creating = not self.pk  # see if the objects exists already or is being created
         super(Submission, self).save(*args, **kwargs)  # create the object
@@ -100,7 +123,13 @@ class Submission(models.Model):
         testcases = self.exercise.testcases.all()
 
         # collect id and input from test cases to pass them onto node
-        testcases_json = [{"id": t.id, "input": t.input} for t in testcases]
+        testcases_json = [
+            {
+                "id": t.id,
+                "input": t.input,
+            }
+            for t in testcases
+        ]
 
         outcome = run_code_in_vm(self.code, testcases_json)
 
@@ -110,6 +139,7 @@ class Submission(models.Model):
         for testcase in testcases:
             print(testcase)
             testcase_outcome = outcome[str(testcase.pk)]
+            testcase_outcome["is_public"] = testcase.is_public
             if passed := str(testcase_outcome.get("output", "None")) == str(
                 testcase.output
             ):

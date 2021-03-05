@@ -1,5 +1,4 @@
 import json
-import subprocess
 
 from django.contrib.auth.models import User
 from django.http import HttpResponse, JsonResponse
@@ -14,6 +13,7 @@ from .models import Exercise, Submission, TestCase
 from .serializers import (
     FullExerciseSerializer,
     PublicExerciseSerializer,
+    PublicSubmissionSerializer,
     SubmissionSerializer,
     TestCaseSerializer,
 )
@@ -52,20 +52,13 @@ class UserSubmissionViewSet(viewsets.ModelViewSet):
 
     # TODO add throttle to limit rate of submission
 
-    serializer_class = SubmissionSerializer
+    serializer_class = PublicSubmissionSerializer
 
     def get_queryset(self):
         exercise_id = self.kwargs["exercise_id"]
         exercise = get_object_or_404(Exercise, pk=exercise_id)
         # filter submissions for given exercise
         queryset = Submission.objects.filter(exercise=exercise, user=self.request.user)
-
-        user_id = self.kwargs.get("user_id")
-        if user_id is not None:
-            # filter by user if a user id was optionally given
-            user = get_object_or_404(User, pk=user_id)
-            queryset = queryset.filter(user=user)
-
         return queryset
 
     def perform_create(self, serializer):
