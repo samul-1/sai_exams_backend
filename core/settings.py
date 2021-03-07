@@ -35,9 +35,10 @@ REST_FRAMEWORK = {
         # empty because the parse_rate() method is overridden in UserSubmissionThrottle to allow
         # 1 request every 30 seconds
     },
+    "TEST_REQUEST_DEFAULT_FORMAT": "json",  # ! dev only
 }
 
-#! dev only
+# ! dev only
 INTERNAL_IPS = [
     # ...
     "127.0.0.1",

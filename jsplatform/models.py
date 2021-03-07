@@ -24,6 +24,9 @@ class Exercise(models.Model):
     text = models.TextField()
     created = models.DateTimeField(auto_now_add=True)
     min_passing_testcases = models.PositiveIntegerField(default=0)
+    creator = models.ForeignKey(
+        User, null=True, on_delete=models.SET_NULL, related_name="exercises"
+    )
 
     def __str__(self):
         return self.text
