@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "35ce32786374cafd9c06d2144bd79cee379ec15d3b62b7ad9fc3100e5c6f7b7b"
+            "sha256": "b0ff11d584b44cb3ad9502ff03ae956051b9ce07aab84de2f838c59540724eb1"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -31,6 +31,14 @@
             "index": "pypi",
             "version": "==3.1.7"
         },
+        "django-debug-toolbar": {
+            "hashes": [
+                "sha256:84e2607d900dbd571df0a2acf380b47c088efb787dce9805aefeb407341961d2",
+                "sha256:9e5a25d0c965f7e686f6a8ba23613ca9ca30184daa26487706d4829f5cfb697a"
+            ],
+            "index": "pypi",
+            "version": "==3.2"
+        },
         "django-filter": {
             "hashes": [
                 "sha256:84e9d5bb93f237e451db814ed422a3a625751cbc9968b484ecc74964a8696b06",
@@ -46,6 +54,14 @@
             ],
             "index": "pypi",
             "version": "==3.12.2"
+        },
+        "drf-nested-routers": {
+            "hashes": [
+                "sha256:995b831be036911e330a86b7129dc6589de62f2a53d72067e7ce2b4a90f28c35",
+                "sha256:9d6a326333e9b16549e63b893c27075d98bbc217cd05fb10bbfa770d728d3f66"
+            ],
+            "index": "pypi",
+            "version": "==0.92.5"
         },
         "markdown": {
             "hashes": [

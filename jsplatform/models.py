@@ -65,7 +65,9 @@ class Submission(models.Model):
     cases to be eligible for turning in
     """
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="submissions"
+    )
     exercise = models.ForeignKey(
         Exercise, on_delete=models.CASCADE, related_name="submissions"
     )

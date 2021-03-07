@@ -8,6 +8,8 @@ django = "<3.2"
 djangorestframework = "*"
 markdown = "*"
 django-filter = "*"
+django-debug-toolbar = "*"
+drf-nested-routers = "*"
 
 [dev-packages]
 

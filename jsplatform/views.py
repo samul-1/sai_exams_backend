@@ -25,10 +25,17 @@ class ExerciseViewSet(viewsets.ModelViewSet):
     queryset = Exercise.objects.all()
     permission_classes = [IsTeacherOrReadOnly]
 
+    def get_queryset(self):
+        queryset = super(ExerciseViewSet, self).get_queryset()
+        return queryset.prefetch_related("testcases")
+
 
 class SubmissionViewSet(viewsets.ModelViewSet):
     """
-    A viewset for listing, retrieving, and creating submissions to a specific exercise
+    A viewset for listing, retrieving, and creating submissions to a specific exercise, and
+    turning in eligible submissions.
+
+    POST requests are limited to one every 30 seconds.
 
     Staff members can access submissions by all users to a specific exercise, whereas
     normal users can only access theirs
@@ -36,7 +43,6 @@ class SubmissionViewSet(viewsets.ModelViewSet):
 
     serializer_class = SubmissionSerializer
     filter_backends = [filters.TeacherOrOwnedOnly]
-    # limit submission rate to 2 per minute tops
 
     def get_throttles(self):
         if self.request.method.lower() == "post":
@@ -48,47 +54,30 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Submission.objects.all()
 
-        exercise_id = self.request.query_params.get("exercise_id", None)
+        exercise_id = self.kwargs["exercise_pk"]
         user_id = self.request.query_params.get("user_id", None)
 
         # filter submissions for given exercise
         if exercise_id is not None:
             exercise = get_object_or_404(Exercise, pk=exercise_id)
-            queryset = Submission.objects.filter(exercise=exercise)
+            queryset = queryset.filter(exercise=exercise)
 
         # filter submissions for given user
         if user_id is not None:
             user = get_object_or_404(User, pk=user_id)
-            queryset = Submission.objects.filter(user=user)
+            queryset = queryset.filter(user=user)
 
         return queryset
 
-    def list(self, request):
-        # an exercise id must be specified to retrieve submissions to that exercise
-        exercise_id = self.request.query_params.get("exercise_id", None)
-        if exercise_id is None:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data="Exercise id required"
-            )
-        return super(viewsets.ModelViewSet, self).list(request)
-
-    def create(self, request):
-        # an exercise id must be specified to create a submission
-        exercise_id = self.request.query_params.get("exercise_id", None)
-        if exercise_id is None:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data="Exercise id required"
-            )
-        return super(viewsets.ModelViewSet, self).create(request)
-
     def perform_create(self, serializer):
-        exercise_id = self.request.query_params.get("exercise_id", None)
+        # exercise_id = self.request.query_params.get("exercise_id", None)
+        exercise_id = self.kwargs["exercise_pk"]
 
         exercise = get_object_or_404(Exercise, pk=exercise_id)
         serializer.save(exercise=exercise, user=self.request.user)
 
-    @action(detail=True, methods=["post"])
-    def turn_in(self, request, pk=None):
+    @action(detail=True, methods=["put"])
+    def turn_in(self, request, pk=None, **kwargs):
         """
         Calls turn_in() on specified submission
         """

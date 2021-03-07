@@ -21,7 +21,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
     or public test cases only for the exercise
     """
 
-    def __init__(self, *args, staff=True, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(ExerciseSerializer, self).__init__(*args, **kwargs)
 
         if self.context["request"].user.is_teacher:
