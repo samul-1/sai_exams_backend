@@ -146,7 +146,6 @@ class Submission(models.Model):
         passed_testcases = 0
 
         for testcase in testcases:
-            print(testcase)
             testcase_outcome = outcome[str(testcase.pk)]
             testcase_outcome["is_public"] = testcase.is_public
             if passed := str(testcase_outcome.get("output", "None")) == str(
