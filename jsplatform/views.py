@@ -2,6 +2,7 @@ import json
 
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -9,9 +10,53 @@ from rest_framework.views import APIView
 
 from . import filters, throttles
 from .exceptions import NotEligibleForTurningIn
-from .models import Exercise, Submission, TestCase, User
+from .models import Exam, Exercise, Submission, TestCase, User
 from .permissions import IsTeacherOrReadOnly
-from .serializers import ExerciseSerializer, SubmissionSerializer, TestCaseSerializer
+from .serializers import (
+    ExamSerializer,
+    ExerciseSerializer,
+    SubmissionSerializer,
+    TestCaseSerializer,
+)
+
+
+class ExamViewSet(viewsets.ModelViewSet):
+    """
+    A viewset for viewing, creating, and editing exams
+
+    Only staff members can create, update, or access arbitrary exam entries
+    Regular users can only access the current exam, defined as the only exam whose begin date is in the past
+    and end date is in the future
+    ! this definition might need to change to allow multiple active exams at once
+    """
+
+    serializer_class = ExamSerializer
+    queryset = Exam.objects.all()
+
+    @action(detail=False, methods=["get"])
+    def my_exam(self, request, **kwargs):
+        """
+        Assigns an exercise from active exam to user if they haven't been assigned one yet;
+        returns that exercise
+        """
+        now = timezone.localtime(timezone.now())
+
+        # get current exam
+        exam = get_object_or_404(Exam, begin_timestamp__lte=now, end_timestamp__gt=now)
+
+        # see if user has already been assigned an exercise for this exam
+        if request.user.assigned_exercises.filter(exam=exam).exists():
+            exercise = request.user.assigned_exercises.get(exam=exam)
+        else:
+            # ! implement this a more efficient way
+            # assign random exercise to user for this exam
+            exercise = exam.exercises.all().order_by("?")[0]
+            request.user.assigned_exercises.add(exercise)
+
+        serializer = ExerciseSerializer(
+            instance=exercise, context={"request": request}, **kwargs
+        )
+        return Response(serializer.data)
 
 
 class ExerciseViewSet(viewsets.ModelViewSet):
@@ -23,7 +68,12 @@ class ExerciseViewSet(viewsets.ModelViewSet):
 
     serializer_class = ExerciseSerializer
     queryset = Exercise.objects.all()
+
+    # only allow teachers to create or update exercises
     permission_classes = [IsTeacherOrReadOnly]
+
+    # only allow regular users to see the exercise that's been assigned to them
+    filter_backends = [filters.TeacherOrAssignedOnly]
 
     def get_queryset(self):
         queryset = super(ExerciseViewSet, self).get_queryset()
@@ -35,7 +85,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     A viewset for listing, retrieving, and creating submissions to a specific exercise, and
     turning in eligible submissions.
 
-    POST requests are limited to one every 30 seconds.
+    POST requests are limited to once every 30 seconds.
 
     Staff members can access submissions by all users to a specific exercise, whereas
     normal users can only access theirs
@@ -43,6 +93,25 @@ class SubmissionViewSet(viewsets.ModelViewSet):
 
     serializer_class = SubmissionSerializer
     filter_backends = [filters.TeacherOrOwnedOnly]
+    queryset = Submission.objects.all()
+
+    def dispatch(self, request, *args, **kwargs):
+        # this method prevents users from accessing `exercises/id/submissions` for exercises
+        # they don't have permission to see
+        parent_view = ExerciseViewSet.as_view({"get": "retrieve"})
+        original_method = request.method
+
+        # get the corresponding Exercise
+        request.method = "GET"
+        parent_kwargs = {"pk": kwargs["exercise_pk"]}
+
+        parent_response = parent_view(request, *args, **parent_kwargs)
+        if parent_response.exception:
+            # user tried accessing an exercise they didn't have permission to view
+            return parent_response
+
+        request.method = original_method
+        return super().dispatch(request, *args, **kwargs)
 
     def get_throttles(self):
         if self.request.method.lower() == "post":
@@ -52,7 +121,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         return super(SubmissionViewSet, self).get_throttles()
 
     def get_queryset(self):
-        queryset = Submission.objects.all()
+        queryset = super(SubmissionViewSet, self).get_queryset()
 
         exercise_id = self.kwargs["exercise_pk"]
         user_id = self.request.query_params.get("user_id", None)
@@ -74,6 +143,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         exercise_id = self.kwargs["exercise_pk"]
 
         exercise = get_object_or_404(Exercise, pk=exercise_id)
+
         serializer.save(exercise=exercise, user=self.request.user)
 
     @action(detail=True, methods=["put"])

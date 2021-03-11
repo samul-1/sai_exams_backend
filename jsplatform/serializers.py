@@ -1,6 +1,12 @@
 from rest_framework import serializers
 
-from .models import Exercise, Submission, TestCase
+from .models import Exam, Exercise, Submission, TestCase
+
+
+class ExamSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Exam
+        fields = "__all__"
 
 
 class TestCaseSerializer(serializers.ModelSerializer):

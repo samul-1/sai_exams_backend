@@ -119,6 +119,9 @@ class ExerciseViewSetTestCase(TestCase):
         force_authenticate(post_request, user=teacher)
         view(post_request)
 
+        # enable user to see the newly created exercise
+        Exercise.objects.get(pk=1).assigned_users.add(student)
+
         factory = APIRequestFactory()
         get_request = factory.get("/exercises/1", format="json")
 
@@ -159,13 +162,15 @@ class ExerciseViewSetTestCase(TestCase):
 class SubmissionViewSetTestCase(TestCase):
     def setUp(self):
         User.objects.create(username="teacher", is_teacher=True)
-        User.objects.create(username="student1", is_teacher=False)
-        User.objects.create(username="student2", is_teacher=False)
+        student1 = User.objects.create(username="student1", is_teacher=False)
+        student2 = User.objects.create(username="student2", is_teacher=False)
 
         exercise = Exercise.objects.create(
             text="Scrivere una funzione che, presi in input due numeri, restituisca il massimo tra i due",
             min_passing_testcases=3,
         )
+        exercise.assigned_users.add(student1)
+        exercise.assigned_users.add(student2)
 
         TestCase_.objects.create(
             exercise=exercise, input="1%%2", output="2", is_public=True
@@ -410,6 +415,7 @@ class SubmissionViewSetTestCase(TestCase):
         request = factory.put(
             "/exercises/1/submissions/1/turn_in",
         )
+        force_authenticate(request, user=student)
         response = view(request, exercise_pk=1, pk=1)
         self.assertEqual(response.status_code, 403)
 
@@ -417,6 +423,7 @@ class SubmissionViewSetTestCase(TestCase):
         request = factory.put(
             "/exercises/1/submissions/2/turn_in",
         )
+        force_authenticate(request, user=student)
         response = view(request, exercise_pk=1, pk=2)
         self.assertEqual(response.status_code, 200)
 
@@ -429,5 +436,6 @@ class SubmissionViewSetTestCase(TestCase):
         request = factory.put(
             "/exercises/1/submissions/3/turn_in",
         )
+        force_authenticate(request, user=student)
         response = view(request, exercise_pk=1, pk=3)
         self.assertEqual(response.status_code, 403)

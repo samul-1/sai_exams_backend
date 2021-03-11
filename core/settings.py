@@ -36,6 +36,7 @@ REST_FRAMEWORK = {
         # 1 request every 30 seconds
     },
     "TEST_REQUEST_DEFAULT_FORMAT": "json",  # ! dev only
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
 }
 
 # ! dev only
@@ -126,7 +127,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Europe/Rome"
 
 USE_I18N = True
 

@@ -16,16 +16,38 @@ class User(AbstractUser):
     is_teacher = models.BooleanField(default=False)
 
 
-class Exercise(models.Model):
+class Exam(models.Model):
     """
-    An exercise, with an assignment text
+    An exam, represented by a name and a begin/end datetime
     """
 
+    name = models.TextField()
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+    begin_timestamp = models.DateTimeField()
+    end_timestamp = models.DateTimeField()
+
+    def __str__(self):
+        return self.name
+
+
+class Exercise(models.Model):
+    """
+    An exercise, with an assignment text. Exercises are generally tied to an exam
+    """
+
+    exam = models.ForeignKey(
+        Exam, null=True, on_delete=models.SET_NULL, related_name="exercises"
+    )
     text = models.TextField()
     created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
     min_passing_testcases = models.PositiveIntegerField(default=0)
     creator = models.ForeignKey(
-        User, null=True, on_delete=models.SET_NULL, related_name="exercises"
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="exercises"
+    )
+    assigned_users = models.ManyToManyField(
+        User, blank=True, related_name="assigned_exercises"
     )
 
     def __str__(self):
@@ -52,8 +74,10 @@ class TestCase(models.Model):
     input = models.TextField()
     output = models.TextField()
     is_public = models.BooleanField(default=True)
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
 
-    objects = models.Manager()
+    objects = models.Manager()  # ?
 
     def __str__(self):
         return str(self.exercise) + " | " + self.input + " -> " + self.output

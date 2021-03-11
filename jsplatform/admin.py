@@ -1,10 +1,15 @@
 from django.contrib import admin
 
-from .models import Exercise, Submission, TestCase, User
+from .models import Exam, Exercise, Submission, TestCase, User
 
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(Exam)
+class ExamAdmin(admin.ModelAdmin):
     pass
 
 
