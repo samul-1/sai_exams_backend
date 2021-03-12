@@ -119,12 +119,12 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         request.method = original_method
         return super().dispatch(request, *args, **kwargs)
 
-    def get_throttles(self):
-        if self.request.method.lower() == "post":
-            # limit POST request rate
-            return [throttles.UserSubmissionThrottle()]
+    # def get_throttles(self):
+    #     if self.request.method.lower() == "post":
+    #         # limit POST request rate
+    #         return [throttles.UserSubmissionThrottle()]
 
-        return super(SubmissionViewSet, self).get_throttles()
+    #     return super(SubmissionViewSet, self).get_throttles()
 
     def get_queryset(self):
         queryset = super(SubmissionViewSet, self).get_queryset()

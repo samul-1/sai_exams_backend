@@ -9,9 +9,11 @@ def run_code_in_vm(code, testcases_json):
     virtual machine and returns the outputs given by the code in JSON format
     """
 
-    node_vm_path = os.environ.get("NODE_VM_PATH", "jsplatform/node/runUserProgram.js")
+    node_vm_path = os.environ.get(
+        "NODE_VM_PATH", "jsplatform/node/runWithAssertions.js"
+    )
 
-    # call node subprocess and run user code against test cases' inputs
+    # call node subprocess and run user code against test cases
     res = subprocess.check_output(
         [
             "node",

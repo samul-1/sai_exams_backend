@@ -40,6 +40,7 @@ class Exercise(models.Model):
         Exam, null=True, on_delete=models.SET_NULL, related_name="exercises"
     )
     text = models.TextField()
+    starting_code = models.TextField(blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
     min_passing_testcases = models.PositiveIntegerField(default=0)
@@ -64,15 +65,13 @@ class TestCase(models.Model):
     """
     A TestCase for an exercise
 
-    User-submitted code is ran using inputs from test cases and its output is compared against
-    the test cases'
+    Assertions in test cases are ran against user submitted code to determine if it's correct
     """
 
     exercise = models.ForeignKey(
         Exercise, on_delete=models.CASCADE, related_name="testcases"
     )
-    input = models.TextField()
-    output = models.TextField()
+    assertion = models.TextField()
     is_public = models.BooleanField(default=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
@@ -80,7 +79,7 @@ class TestCase(models.Model):
     objects = models.Manager()  # ?
 
     def __str__(self):
-        return str(self.exercise) + " | " + self.input + " -> " + self.output
+        return str(self.exercise) + " | " + self.assertion
 
 
 class Submission(models.Model):
@@ -88,7 +87,7 @@ class Submission(models.Model):
     A program that was submitted by a user
 
     Once created, the code in a submission is ran in node against the exercise test cases
-    and the output is saved to a JSONField, determining if the submission passes enough test
+    and the result is saved to a JSONField, determining if the submission passes enough test
     cases to be eligible for turning in
     """
 
@@ -102,7 +101,7 @@ class Submission(models.Model):
 
     code = models.TextField()  # user-submitted code
 
-    # JSON dict containing the id, input, and given output for each test case of the exercise
+    # JSON dict containing the id, assertion, and status for each test case of corresponding exercise
     details = JSONField(null=True, blank=True)
 
     # True if enough test cases were passed and the code can be confirmed by user
@@ -120,25 +119,21 @@ class Submission(models.Model):
     def public_details(self):
         """
         Returns a subset of the details field dict containing information about public tests only,
-        and the number of secret tests that were failed
+        and the number of secret tests that failed
         """
 
         # filter for public tests only
-        dict = {
-            id: details for id, details in self.details.items() if details["is_public"]
-        }
+        public_tests = [t for t in self.details["tests"] if t["is_public"]]
 
+        # count failed secret tests
         failed_secret_tests = len(
-            {
-                id: details
-                for id, details in self.details.items()
-                if not details["is_public"] and not details["passed"]
-            }.keys()
+            [t for t in self.details["tests"] if not t["is_public"] and not t["passed"]]
         )
 
-        dict["failed_secret_tests"] = failed_secret_tests
-
-        return dict
+        return {
+            "tests": public_tests,
+            "failed_secret_tests": failed_secret_tests,
+        }
 
     def save(self, *args, **kwargs):
         creating = not self.pk  # see if the objects exists already or is being created
@@ -155,30 +150,26 @@ class Submission(models.Model):
 
         testcases = self.exercise.testcases.all()
 
-        # collect id and input from test cases to pass them onto node
+        # collect testcases and pass them onto node
         testcases_json = [
             {
                 "id": t.id,
-                "input": t.input,
+                "assertion": t.assertion,
+                "is_public": t.is_public,
             }
             for t in testcases
         ]
 
         outcome = run_code_in_vm(self.code, testcases_json)
 
-        # compare user's code outputs to expected test case outputs
         passed_testcases = 0
+        # count passed tests
+        if "error" not in outcome.keys():
+            for testcase in outcome["tests"]:
+                if testcase["passed"]:
+                    passed_testcases += 1
 
-        for testcase in testcases:
-            testcase_outcome = outcome[str(testcase.pk)]
-            testcase_outcome["is_public"] = testcase.is_public
-            if passed := str(testcase_outcome.get("output", "None")) == str(
-                testcase.output
-            ):
-                passed_testcases += 1
-
-            testcase_outcome["passed"] = passed
-
+        # save details object to Submission instance
         self.details = outcome
 
         # determine if the submission is eligible for turning in based on how many tests it passed

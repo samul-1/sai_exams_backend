@@ -27,12 +27,12 @@ class ExamSerializer(serializers.ModelSerializer):
 
 class TestCaseSerializer(serializers.ModelSerializer):
     """
-    A serializer for TestCase model showing its input, output, and public/secret status
+    A serializer for TestCase model showing its associated assrtion and public/secret status
     """
 
     class Meta:
         model = TestCase
-        fields = ["id", "input", "output", "is_public"]
+        fields = ["id", "assertion", "is_public"]
 
     id = serializers.IntegerField(required=False)
 
@@ -80,8 +80,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
         # update each test case
         for testcase_data in testcases_data:
             t = testcases.pop(0)
-            t.input = testcase_data.get("input", t.input)
-            t.output = testcase_data.get("output", t.output)
+            t.assertion = testcase_data.get("assertion", t.assertion)
             t.is_public = testcase_data.get("is_public", t.is_public)
             t.save()
 

@@ -27,8 +27,14 @@ class ExerciseViewSetTestCase(TestCase):
                 "text": "Scrivere una funzione che, presi in input due numeri, restituisca il massimo tra i due.",
                 "min_passing_testcases": 2,
                 "testcases": [
-                    {"input": "1%%2", "output": "2", "is_public": True},
-                    {"input": "-1%%0", "output": "0", "is_public": False},
+                    {
+                        "assertion": "assert.strictEqual(max(1,2), 2)",
+                        "is_public": True,
+                    },
+                    {
+                        "assertion": "assert.strictEqual(max(-1,0), 0)",
+                        "is_public": False,
+                    },
                 ],
             },
             format="json",
@@ -73,8 +79,14 @@ class ExerciseViewSetTestCase(TestCase):
                 "text": "Scrivere una funzione che, presi in input due numeri, restituisca il minimo tra i due.",
                 "min_passing_testcases": 2,
                 "testcases": [
-                    {"input": "1%%2", "output": "1", "is_public": True},
-                    {"input": "-1%%0", "output": "-1", "is_public": False},
+                    {
+                        "assertion": "assert.strictEqual(max(1,2), 1)",
+                        "is_public": True,
+                    },
+                    {
+                        "assertion": "assert.strictEqual(max(-1,0), -1)",
+                        "is_public": False,
+                    },
                 ],
             },
             format="json",
@@ -99,8 +111,16 @@ class ExerciseViewSetTestCase(TestCase):
                 "id": 1,
                 "text": "Scrivere una funzione che, presi in input due numeri, restituisca il minimo tra i due.",
                 "testcases": [
-                    {"id": 1, "input": "1%%2", "output": "1", "is_public": True},
-                    {"id": 2, "input": "-1%%0", "output": "-1", "is_public": False},
+                    {
+                        "id": 1,
+                        "assertion": "assert.strictEqual(max(1,2), 1)",
+                        "is_public": True,
+                    },
+                    {
+                        "id": 2,
+                        "assertion": "assert.strictEqual(max(-1,0), -1)",
+                        "is_public": False,
+                    },
                 ],
             },
         )
@@ -136,7 +156,11 @@ class ExerciseViewSetTestCase(TestCase):
                 "id": 1,
                 "text": "Scrivere una funzione che, presi in input due numeri, restituisca il massimo tra i due.",
                 "public_testcases": [
-                    {"id": 1, "input": "1%%2", "output": "2", "is_public": True},
+                    {
+                        "id": 1,
+                        "assertion": "assert.strictEqual(max(1,2), 2)",
+                        "is_public": True,
+                    },
                 ],
             },
         )
@@ -152,8 +176,16 @@ class ExerciseViewSetTestCase(TestCase):
                 "id": 1,
                 "text": "Scrivere una funzione che, presi in input due numeri, restituisca il massimo tra i due.",
                 "testcases": [
-                    {"id": 1, "input": "1%%2", "output": "2", "is_public": True},
-                    {"id": 2, "input": "-1%%0", "output": "0", "is_public": False},
+                    {
+                        "id": 1,
+                        "assertion": "assert.strictEqual(max(1,2), 2)",
+                        "is_public": True,
+                    },
+                    {
+                        "id": 2,
+                        "assertion": "assert.strictEqual(max(-1,0), 0)",
+                        "is_public": False,
+                    },
                 ],
             },
         )
@@ -173,13 +205,19 @@ class SubmissionViewSetTestCase(TestCase):
         exercise.assigned_users.add(student2)
 
         TestCase_.objects.create(
-            exercise=exercise, input="1%%2", output="2", is_public=True
+            exercise=exercise,
+            assertion="assert.strictEqual(max(1,2), 2)",
+            is_public=True,
         )
         TestCase_.objects.create(
-            exercise=exercise, input="10%%22", output="22", is_public=False
+            exercise=exercise,
+            assertion="assert.strictEqual(max(10,22), 22)",
+            is_public=False,
         )
         TestCase_.objects.create(
-            exercise=exercise, input="-1%%0", output="0", is_public=True
+            exercise=exercise,
+            assertion="assert.strictEqual(max(-1,0), 0)",
+            is_public=True,
         )
 
     def get_post_request(self, code, pk):
@@ -237,7 +275,6 @@ class SubmissionViewSetTestCase(TestCase):
         response.render()
         content = json.loads(response.content)
         content.pop("timestamp")  # remove timestamp as it's non-deterministic
-
         self.assertEqual(
             content,
             {
@@ -246,21 +283,23 @@ class SubmissionViewSetTestCase(TestCase):
                 "code": "function max(a,b) { return a>b?a:b }",
                 "is_eligible": True,
                 "has_been_turned_in": False,
-                "public_details": {  # a student must only see public test case details
-                    "1": {
-                        "parameters": ["1", "2"],
-                        "output": 2,
-                        "is_public": True,
-                        "passed": True,
-                    },
-                    "3": {
-                        "parameters": ["-1", "0"],
-                        "output": 0,
-                        "is_public": True,
-                        "passed": True,
-                    },
+                "public_details": {
                     "failed_secret_tests": 0,
-                },
+                    "tests": [
+                        {
+                            "id": 1,
+                            "assertion": "assert.strictEqual(max(1,2), 2)",
+                            "is_public": True,
+                            "passed": True,
+                        },
+                        {
+                            "id": 3,
+                            "assertion": "assert.strictEqual(max(-1,0), 0)",
+                            "is_public": True,
+                            "passed": True,
+                        },
+                    ],
+                },  # a student must only see public test case details
             },
         )
 
@@ -296,18 +335,20 @@ class SubmissionViewSetTestCase(TestCase):
                 "is_eligible": True,
                 "has_been_turned_in": False,
                 "public_details": {  # a student must only see public test case details
-                    "1": {
-                        "parameters": ["1", "2"],
-                        "output": 2,
-                        "is_public": True,
-                        "passed": True,
-                    },
-                    "3": {
-                        "parameters": ["-1", "0"],
-                        "output": 0,
-                        "is_public": True,
-                        "passed": True,
-                    },
+                    "tests": [
+                        {
+                            "id": 1,
+                            "assertion": "assert.strictEqual(max(1,2), 2)",
+                            "is_public": True,
+                            "passed": True,
+                        },
+                        {
+                            "id": 3,
+                            "assertion": "assert.strictEqual(max(-1,0), 0)",
+                            "is_public": True,
+                            "passed": True,
+                        },
+                    ],
                     "failed_secret_tests": 0,
                 },
             },
@@ -331,24 +372,26 @@ class SubmissionViewSetTestCase(TestCase):
                 "is_eligible": True,
                 "has_been_turned_in": False,
                 "details": {  # all details are shown
-                    "1": {
-                        "parameters": ["1", "2"],
-                        "output": 2,
-                        "is_public": True,
-                        "passed": True,
-                    },
-                    "2": {
-                        "parameters": ["10", "22"],
-                        "output": 22,
-                        "is_public": False,
-                        "passed": True,
-                    },
-                    "3": {
-                        "parameters": ["-1", "0"],
-                        "output": 0,
-                        "is_public": True,
-                        "passed": True,
-                    },
+                    "tests": [
+                        {
+                            "id": 1,
+                            "assertion": "assert.strictEqual(max(1,2), 2)",
+                            "is_public": True,
+                            "passed": True,
+                        },
+                        {
+                            "id": 2,
+                            "assertion": "assert.strictEqual(max(10,22), 22)",
+                            "is_public": False,
+                            "passed": True,
+                        },
+                        {
+                            "id": 3,
+                            "assertion": "assert.strictEqual(max(-1,0), 0)",
+                            "is_public": True,
+                            "passed": True,
+                        },
+                    ],
                 },
             },
         )
