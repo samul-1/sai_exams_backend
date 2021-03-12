@@ -7,3 +7,8 @@ class IsTeacherOrReadOnly(BasePermission):
             return True
 
         return request.method in SAFE_METHODS
+
+
+class TeachersOnly(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_teacher

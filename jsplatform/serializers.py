@@ -8,6 +8,22 @@ class ExamSerializer(serializers.ModelSerializer):
         model = Exam
         fields = "__all__"
 
+    def __init__(self, *args, **kwargs):
+        super(ExamSerializer, self).__init__(*args, **kwargs)
+        print(self)
+        if self.context["request"].user.is_teacher:
+            # if requesting user is a teacher, show all exercises for this exam
+            self.fields["exercises"] = ExerciseSerializer(many=True, **kwargs)
+        else:
+            # if requesting user isn't a teacher, show only the exercise that's been assigned to them
+            self.fields["exercise"] = serializers.SerializerMethodField()
+
+    def get_exercise(self, obj):
+        return ExerciseSerializer(
+            instance=self.context["exercise"],
+            context={"request": self.context["request"]},
+        ).data
+
 
 class TestCaseSerializer(serializers.ModelSerializer):
     """

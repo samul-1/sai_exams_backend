@@ -5,13 +5,14 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from . import filters, throttles
 from .exceptions import NotEligibleForTurningIn
 from .models import Exam, Exercise, Submission, TestCase, User
-from .permissions import IsTeacherOrReadOnly
+from .permissions import IsTeacherOrReadOnly, TeachersOnly
 from .serializers import (
     ExamSerializer,
     ExerciseSerializer,
@@ -32,8 +33,10 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     serializer_class = ExamSerializer
     queryset = Exam.objects.all()
+    # only allow teachers to access exams' data
+    permission_classes = [TeachersOnly]
 
-    @action(detail=False, methods=["get"])
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def my_exam(self, request, **kwargs):
         """
         Assigns an exercise from active exam to user if they haven't been assigned one yet;
@@ -53,8 +56,11 @@ class ExamViewSet(viewsets.ModelViewSet):
             exercise = exam.exercises.all().order_by("?")[0]
             request.user.assigned_exercises.add(exercise)
 
-        serializer = ExerciseSerializer(
-            instance=exercise, context={"request": request}, **kwargs
+        # serializer = ExerciseSerializer(
+        #     instance=exercise, context={"request": request}, **kwargs
+        # )
+        serializer = ExamSerializer(
+            instance=exam, context={"request": request, "exercise": exercise}, **kwargs
         )
         return Response(serializer.data)
 
