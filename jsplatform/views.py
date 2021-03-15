@@ -36,20 +36,29 @@ class ExamViewSet(viewsets.ModelViewSet):
     # only allow teachers to access exams' data
     permission_classes = [TeachersOnly]
 
-    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=["get"], permission_classes=[~TeachersOnly])
     def my_exam(self, request, **kwargs):
         """
         Assigns an exercise from active exam to user if they haven't been assigned one yet;
         returns that exercise
+
+        Only students can access this (access from teachers returns 403)
         """
         now = timezone.localtime(timezone.now())
-
+        print(request.user)
         # get current exam
         exam = get_object_or_404(Exam, begin_timestamp__lte=now, end_timestamp__gt=now)
 
         # see if user has already been assigned an exercise for this exam
         if request.user.assigned_exercises.filter(exam=exam).exists():
             exercise = request.user.assigned_exercises.get(exam=exam)
+            if exercise.submissions.filter(
+                user=request.user, has_been_turned_in=True
+            ).exists():
+                return Response(
+                    data={"message": "Hai già consegnato."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
         else:
             # ! implement this a more efficient way
             # assign random exercise to user for this exam
@@ -59,8 +68,15 @@ class ExamViewSet(viewsets.ModelViewSet):
         # serializer = ExerciseSerializer(
         #     instance=exercise, context={"request": request}, **kwargs
         # )
+        student_submissions = exercise.submissions.filter(user=request.user)
         serializer = ExamSerializer(
-            instance=exam, context={"request": request, "exercise": exercise}, **kwargs
+            instance=exam,
+            context={
+                "request": request,
+                "exercise": exercise,
+                "submissions": student_submissions,
+            },
+            **kwargs
         )
         return Response(serializer.data)
 

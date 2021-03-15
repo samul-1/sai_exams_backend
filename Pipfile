@@ -11,6 +11,10 @@ django-filter = "*"
 django-debug-toolbar = "*"
 drf-nested-routers = "*"
 mkdocs = "*"
+djoser = "*"
+django-cors-headers = "*"
+pyyaml = "*"
+uritemplate = "*"
 
 [dev-packages]
 

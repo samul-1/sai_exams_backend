@@ -113,6 +113,9 @@ class Submission(models.Model):
 
     # TODO add constraint to make sure there isn't more than one turned in submission per exercise per user
 
+    class Meta:
+        ordering = ["-timestamp"]
+
     def __str__(self):
         return self.code
 
@@ -121,6 +124,11 @@ class Submission(models.Model):
         Returns a subset of the details field dict containing information about public tests only,
         and the number of secret tests that failed
         """
+
+        if "tests" not in self.details:
+            # this happens if an error occurred during execution of code; in this case, there is no
+            # data about the test cases and the details object contains only info about the error
+            return self.details
 
         # filter for public tests only
         public_tests = [t for t in self.details["tests"] if t["is_public"]]
@@ -161,7 +169,7 @@ class Submission(models.Model):
         ]
 
         outcome = run_code_in_vm(self.code, testcases_json)
-
+        print(outcome)
         passed_testcases = 0
         # count passed tests
         if "error" not in outcome.keys():

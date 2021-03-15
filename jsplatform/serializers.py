@@ -17,11 +17,19 @@ class ExamSerializer(serializers.ModelSerializer):
         else:
             # if requesting user isn't a teacher, show only the exercise that's been assigned to them
             self.fields["exercise"] = serializers.SerializerMethodField()
+            self.fields["submissions"] = serializers.SerializerMethodField()
 
     def get_exercise(self, obj):
         return ExerciseSerializer(
             instance=self.context["exercise"],
             context={"request": self.context["request"]},
+        ).data
+
+    def get_submissions(self, obj):
+        return SubmissionSerializer(
+            instance=self.context["submissions"],
+            context={"request": self.context["request"]},
+            many=True,
         ).data
 
 
@@ -56,7 +64,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Exercise
-        fields = ["id", "text"]
+        fields = ["id", "text", "starting_code"]
 
     def create(self, validated_data):
         testcases = validated_data.pop("testcases")
