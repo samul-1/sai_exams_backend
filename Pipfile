@@ -5,7 +5,7 @@ name = "pypi"
 
 [packages]
 django = "<3.2"
-djangorestframework = "*"
+djangorestframework = "<3.12.0"
 markdown = "*"
 django-filter = "*"
 django-debug-toolbar = "*"
@@ -15,6 +15,8 @@ djoser = "*"
 django-cors-headers = "*"
 pyyaml = "*"
 uritemplate = "*"
+django-allauth = "*"
+django-rest-auth = "*"
 
 [dev-packages]
 

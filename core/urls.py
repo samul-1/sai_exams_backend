@@ -22,6 +22,7 @@ from rest_framework.schemas import get_schema_view
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("jsplatform.urls")),
+    path("users/", include("users.urls")),
     path("api-auth/", include("rest_framework.urls")),
     path("__debug__/", include(debug_toolbar.urls)),  #! dev only
     path("api/v1/", include("djoser.urls")),

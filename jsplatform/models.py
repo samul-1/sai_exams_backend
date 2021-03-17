@@ -7,13 +7,13 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.db.models import JSONField
+from users.models import User
 
 from .exceptions import NotEligibleForTurningIn, SubmissionAlreadyTurnedIn
 from .utils import run_code_in_vm
 
-
-class User(AbstractUser):
-    is_teacher = models.BooleanField(default=False)
+# class User(AbstractUser):
+#     is_teacher = models.BooleanField(default=False)
 
 
 class Exam(models.Model):
