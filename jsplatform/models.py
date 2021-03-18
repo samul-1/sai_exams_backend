@@ -30,6 +30,28 @@ class Exam(models.Model):
     def __str__(self):
         return self.name
 
+    def get_exercise_for(self, user, force_next=False):
+        """
+        If called for the first time: creates an ExamProgress object for user and returns a random exercise for them
+        If called subsequently and `force_next` isn't explicitly set to True, returns the current exercise for the requesting user
+        If called with `force_next` explicitly set to True, returns a random exercise that the user hasn't completed yet and updates
+        their ExamProgress object
+        """
+
+        # get user's ExamProgress object or create it
+        progress, created = ExamProgress.objects.get_or_create(
+            exam=self, user=user
+        )  # user.exams_progress.get(exam=self)
+
+        if created or force_next:
+            # add current exercise to list of completed exercises, if one exists
+            # (which it does if and only if the progress object isn't being created right now)
+            exercise = progress.get_next_exercise()
+        else:
+            exercise = progress.current_exercise
+        print(exercise)
+        return exercise
+
 
 class Exercise(models.Model):
     """
@@ -59,6 +81,54 @@ class Exercise(models.Model):
         Returns all the *public* test cases for this question
         """
         return self.testcases.filter(is_public=True)
+
+
+class ExamProgress(models.Model):
+    """
+    Represents the progress of a user during an exam, that is the exercises they've already completed
+    and the current one
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="exams_progress",
+        on_delete=models.CASCADE,
+    )
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE)
+    current_exercise = models.ForeignKey(
+        Exercise,
+        related_name="current_in_exams",
+        null=True,
+        default=None,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
+    completed_exercises = models.ManyToManyField(
+        Exercise,
+        related_name="completed_in_exams",
+        blank=True,
+    )
+
+    def get_next_exercise(self):
+        if self.current_exercise is not None:
+            self.completed_exercises.add(self.current_exercise)
+            self.current_exercise = None
+            self.save()
+
+        available_exercises = self.exam.exercises.exclude(
+            id__in=self.completed_exercises.all()
+        )
+
+        if available_exercises.count() == 0:
+            print(available_exercises.count())
+            # user has completed all exercises for this exam
+            return None
+
+        random_exercise = available_exercises.order_by("?")[0]
+
+        self.current_exercise = random_exercise
+        self.save()
+        return random_exercise
 
 
 class TestCase(models.Model):
@@ -196,3 +266,6 @@ class Submission(models.Model):
 
         self.has_been_turned_in = True
         self.save()
+
+        # load next exercise for exam
+        self.exercise.exam.get_exercise_for(self.user, force_next=True)

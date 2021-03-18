@@ -36,7 +36,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     # only allow teachers to access exams' data
     permission_classes = [TeachersOnly]
 
-    @action(detail=False, methods=["get"], permission_classes=[~TeachersOnly])
+    @action(detail=False, methods=["post"], permission_classes=[~TeachersOnly])
     def my_exam(self, request, **kwargs):
         """
         Assigns an exercise from active exam to user if they haven't been assigned one yet;
@@ -49,25 +49,13 @@ class ExamViewSet(viewsets.ModelViewSet):
         # get current exam
         exam = get_object_or_404(Exam, begin_timestamp__lte=now, end_timestamp__gt=now)
 
-        # see if user has already been assigned an exercise for this exam
-        if request.user.assigned_exercises.filter(exam=exam).exists():
-            exercise = request.user.assigned_exercises.get(exam=exam)
-            if exercise.submissions.filter(
-                user=request.user, has_been_turned_in=True
-            ).exists():
-                return Response(
-                    data={"message": "Hai già consegnato."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-        else:
-            # ! implement this a more efficient way
-            # assign random exercise to user for this exam
-            exercise = exam.exercises.all().order_by("?")[0]
-            request.user.assigned_exercises.add(exercise)
+        exercise = exam.get_exercise_for(request.user)
 
-        # serializer = ExerciseSerializer(
-        #     instance=exercise, context={"request": request}, **kwargs
-        # )
+        if exercise is None:
+            return Response(
+                status=status.HTTP_204_NO_CONTENT,
+            )
+
         student_submissions = exercise.submissions.filter(user=request.user)
         serializer = ExamSerializer(
             instance=exam,
@@ -95,7 +83,7 @@ class ExerciseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsTeacherOrReadOnly]
 
     # only allow regular users to see the exercise that's been assigned to them
-    filter_backends = [filters.TeacherOrAssignedOnly]
+    # filter_backends = [filters.TeacherOrAssignedOnly]
 
     def get_queryset(self):
         queryset = super(ExerciseViewSet, self).get_queryset()
@@ -114,26 +102,26 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = SubmissionSerializer
-    filter_backends = [filters.TeacherOrOwnedOnly]
+    # filter_backends = [filters.TeacherOrOwnedOnly]
     queryset = Submission.objects.all()
 
-    def dispatch(self, request, *args, **kwargs):
-        # this method prevents users from accessing `exercises/id/submissions` for exercises
-        # they don't have permission to see
-        parent_view = ExerciseViewSet.as_view({"get": "retrieve"})
-        original_method = request.method
+    # def dispatch(self, request, *args, **kwargs):
+    #     # this method prevents users from accessing `exercises/id/submissions` for exercises
+    #     # they don't have permission to see
+    #     parent_view = ExerciseViewSet.as_view({"get": "retrieve"})
+    #     original_method = request.method
 
-        # get the corresponding Exercise
-        request.method = "GET"
-        parent_kwargs = {"pk": kwargs["exercise_pk"]}
+    #     # get the corresponding Exercise
+    #     request.method = "GET"
+    #     parent_kwargs = {"pk": kwargs["exercise_pk"]}
 
-        parent_response = parent_view(request, *args, **parent_kwargs)
-        if parent_response.exception:
-            # user tried accessing an exercise they didn't have permission to view
-            return parent_response
+    #     parent_response = parent_view(request, *args, **parent_kwargs)
+    #     if parent_response.exception:
+    #         # user tried accessing an exercise they didn't have permission to view
+    #         return parent_response
 
-        request.method = original_method
-        return super().dispatch(request, *args, **kwargs)
+    #     request.method = original_method
+    #     return super().dispatch(request, *args, **kwargs)
 
     # def get_throttles(self):
     #     if self.request.method.lower() == "post":

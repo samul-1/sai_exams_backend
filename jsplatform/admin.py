@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Exam, Exercise, Submission, TestCase, User
+from .models import Exam, ExamProgress, Exercise, Submission, TestCase, User
 
 
 @admin.register(User)
@@ -10,6 +10,11 @@ class UserAdmin(admin.ModelAdmin):
 
 @admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(ExamProgress)
+class ExamProgressAdmin(admin.ModelAdmin):
     pass
 
 
