@@ -1,8 +1,7 @@
-from django.urls import include, path
+from django.urls import include, path, re_path
 
 from . import views
 
 urlpatterns = [
-    path("", views.UserListView.as_view()),
-    path("login/", views.google_login, name="google_login"),
+    re_path(r"^auth/", include("rest_framework_social_oauth2.urls")),
 ]

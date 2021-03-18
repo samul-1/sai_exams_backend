@@ -17,6 +17,8 @@ pyyaml = "*"
 uritemplate = "*"
 django-allauth = "*"
 django-rest-auth = "*"
+dj-rest-auth = "*"
+django-rest-framework-social-oauth2 = "*"
 
 [dev-packages]
 

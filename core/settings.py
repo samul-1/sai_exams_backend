@@ -26,7 +26,6 @@ SECRET_KEY = "mj5lrnzbas!-_)6@eh9$%ta_b2fj_$up*t)qqvr9+5flcz*tga"
 DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
-CORS_ORIGIN_ALLOW_ALL = True
 
 AUTH_USER_MODEL = "users.User"
 
@@ -39,15 +38,17 @@ REST_FRAMEWORK = {
     "TEST_REQUEST_DEFAULT_FORMAT": "json",  # ! dev only
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework.authentication.TokenAuthentication",
+        # "rest_framework.authentication.TokenAuthentication",
+        "oauth2_provider.contrib.rest_framework.OAuth2Authentication",  # django-oauth-toolkit >= 1.0.0
+        "rest_framework_social_oauth2.authentication.SocialAuthentication",
     ),
 }
-# --
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8081",
-    "http://localhost:8080",
-    "http://127.0.0.1:8081",
-]
+#
+
+CORS_ORIGIN_ALLOW_ALL = True
+
+
+CORS_ALLOW_CREDENTIALS = True
 
 # --
 
@@ -75,20 +76,17 @@ INSTALLED_APPS = [
     "djoser",
     "users",
     "django.contrib.sites",
-    "allauth",
-    "allauth.account",
-    "allauth.socialaccount",
-    "allauth.socialaccount.providers.google",
-    "rest_auth",
-    "rest_auth.registration",
+    "oauth2_provider",
+    "social_django",
+    "rest_framework_social_oauth2",
 ]
 
 SITE_ID = 1
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "debug_toolbar.middleware.DebugToolbarMiddleware",  # !dev only
     "django.middleware.security.SecurityMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -107,6 +105,8 @@ TEMPLATES = [
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
+                "social_django.context_processors.backends",
+                "social_django.context_processors.login_redirect",
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
@@ -115,6 +115,30 @@ TEMPLATES = [
         },
     },
 ]
+
+AUTHENTICATION_BACKENDS = (
+    # Google OAuth2
+    "social_core.backends.google.GoogleOAuth2",
+    # django-rest-framework-social-oauth2
+    "rest_framework_social_oauth2.backends.DjangoOAuth2",
+    # Django
+    "django.contrib.auth.backends.ModelBackend",
+)
+
+SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+]
+
+SOCIAL_AUTH_GOOGLE_OAUTH2_AUTH_EXTRA_ARGUMENTS = {"hd": "studenti.unipi.it"}
+AUTH_EXTRA_ARGUMENTS = {"hd": "studenti.unipi.it"}
+SOCIAL_AUTH_GOOGLE_OAUTH2_WHITELISTED_DOMAINS = ["studenti.unipi.it"]
+
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = (
+    "02943122018-lb4vg8vh08r3sd3clseoirva79cmjvgn.apps.googleusercontent.com"
+)
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = "SQlnUfRiQkR3mKoz3FkKz64T"
+
 
 WSGI_APPLICATION = "core.wsgi.application"
 
