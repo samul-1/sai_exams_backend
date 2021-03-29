@@ -77,23 +77,6 @@ const userCode = process.argv[2]
 
 const assertions = JSON.parse(process.argv[3])
 
-// [
-//     {
-//         id: 1,
-//         assertion: 'assert.strictEqual(max(1,2),2)',
-//         public: true,
-//     },    
-//     {
-//         id: 2,
-//         assertion: 'assert.strictEqual(max(22,10),22)',
-//         public: true,
-//     },    
-//     {
-//         id: 3,
-//         assertion: 'assert.strictEqual(max(-1,0),0)',
-//         public: false,
-//     },
-// ]
 
 // turn array of strings representing assertion to a series of try-catch's where those assertions
 // are evaluated and the result is pushed to an array - this string will be inlined into the program

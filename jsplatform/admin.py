@@ -1,6 +1,16 @@
 from django.contrib import admin
 
-from .models import Exam, ExamProgress, Exercise, Submission, TestCase, User
+from .models import (
+    Answer,
+    Exam,
+    ExamProgress,
+    Exercise,
+    GivenAnswer,
+    MultipleChoiceQuestion,
+    Submission,
+    TestCase,
+    User,
+)
 
 
 @admin.register(User)
@@ -30,4 +40,19 @@ class TestCaseAdmin(admin.ModelAdmin):
 
 @admin.register(Submission)
 class SubmissionAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(MultipleChoiceQuestion)
+class MultipleChoiceQuestionAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(Answer)
+class AnswerAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(GivenAnswer)
+class GivenAnswerAdmin(admin.ModelAdmin):
     pass

@@ -4,3 +4,7 @@ class SubmissionAlreadyTurnedIn(Exception):
 
 class NotEligibleForTurningIn(Exception):
     pass
+
+
+class InvalidAnswerException(Exception):
+    pass

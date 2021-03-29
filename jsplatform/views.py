@@ -10,15 +10,45 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from . import filters, throttles
-from .exceptions import NotEligibleForTurningIn
-from .models import Exam, Exercise, Submission, TestCase, User
+from .exceptions import InvalidAnswerException, NotEligibleForTurningIn
+from .models import (
+    Exam,
+    ExamProgress,
+    Exercise,
+    GivenAnswer,
+    MultipleChoiceQuestion,
+    Submission,
+    TestCase,
+    User,
+)
 from .permissions import IsTeacherOrReadOnly, TeachersOnly
 from .serializers import (
     ExamSerializer,
     ExerciseSerializer,
+    GivenAnswerSerializer,
+    MultipleChoiceQuestionSerializer,
     SubmissionSerializer,
     TestCaseSerializer,
 )
+
+
+class MultipleChoiceQuestionViewSet(viewsets.ModelViewSet):
+    serializer_class = MultipleChoiceQuestionSerializer
+    queryset = MultipleChoiceQuestion.objects.all()
+
+    def get_queryset(self):
+        """
+        Restricts the queryset so users can only see their current question
+        """
+        # ? what if there can be multiple active exams at the same time?
+        now = timezone.localtime(timezone.now())
+        # get current exam
+        exam = get_object_or_404(Exam, begin_timestamp__lte=now, end_timestamp__gt=now)
+        progress = ExamProgress.objects.get(exam=exam, user=self.request.user)
+
+        queryset = super(MultipleChoiceQuestionViewSet, self).get_queryset()
+        queryset = queryset.filter(pk=progress.current_question.pk)
+        return queryset.prefetch_related("answers")
 
 
 class ExamViewSet(viewsets.ModelViewSet):
@@ -45,27 +75,35 @@ class ExamViewSet(viewsets.ModelViewSet):
         Only students can access this (access from teachers returns 403)
         """
         now = timezone.localtime(timezone.now())
-        print(request.user)
+
         # get current exam
         exam = get_object_or_404(Exam, begin_timestamp__lte=now, end_timestamp__gt=now)
 
-        exercise = exam.get_exercise_for(request.user)
+        # this will either create a new ExamProgress object and get a random item for
+        # the user if this is the first visit, or will return the currently active
+        # item (question or coding exercise) if it's not
+        item = exam.get_item_for(request.user)  # force_next=True
 
-        if exercise is None:
+        # there are no more exercises to show the user; send special http code for frontend to handle this
+        if item is None:
             return Response(
                 status=status.HTTP_204_NO_CONTENT,
             )
 
-        student_submissions = exercise.submissions.filter(user=request.user)
-        serializer = ExamSerializer(
-            instance=exam,
-            context={
-                "request": request,
-                "exercise": exercise,
-                "submissions": student_submissions,
-            },
-            **kwargs
-        )
+        context = {
+            "request": request,
+        }
+
+        # determine if the item retrieved is a coding exercise or a multiple choice question
+        if isinstance(item, Exercise):
+            # retrieve user's submissions to this exercise and send them along
+            student_submissions = item.submissions.filter(user=request.user)
+            context["submissions"] = student_submissions
+            context["exercise"] = item
+        else:
+            context["question"] = item
+
+        serializer = ExamSerializer(instance=exam, context=context, **kwargs)
         return Response(serializer.data)
 
 
@@ -83,11 +121,65 @@ class ExerciseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsTeacherOrReadOnly]
 
     # only allow regular users to see the exercise that's been assigned to them
-    # filter_backends = [filters.TeacherOrAssignedOnly]
+    # ! filter_backends = [filters.TeacherOrAssignedOnly]
 
     def get_queryset(self):
         queryset = super(ExerciseViewSet, self).get_queryset()
         return queryset.prefetch_related("testcases")
+
+
+class GivenAnswerViewSet(viewsets.ModelViewSet):
+    serializer_class = GivenAnswerSerializer
+    queryset = GivenAnswer.objects.all()
+
+    def dispatch(self, request, *args, **kwargs):
+        # this method prevents users from accessing `questions/id/given_answers` for questions
+        # they don't have permission to see
+        parent_view = MultipleChoiceQuestionViewSet.as_view({"get": "retrieve"})
+        original_method = request.method
+
+        # get the corresponding Exercise
+        request.method = "GET"
+        parent_kwargs = {"pk": kwargs["question_pk"]}
+
+        parent_response = parent_view(request, *args, **parent_kwargs)
+        if parent_response.exception:
+            # user tried accessing a question they didn't have permission to view
+            return parent_response
+
+        request.method = original_method
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        queryset = super(GivenAnswerViewSet, self).get_queryset()
+
+        question_id = self.kwargs["question_pk"]
+        user_id = self.request.query_params.get("user_id", None)
+
+        # filter given answers for given question
+        if question_id is not None:
+            question = get_object_or_404(MultipleChoiceQuestion, pk=question_id)
+            queryset = queryset.filter(question=question)
+
+        # filter given answers for given user
+        if user_id is not None:
+            user = get_object_or_404(User, pk=user_id)
+            queryset = queryset.filter(user=user)
+
+        return queryset
+
+    def create(self, request, **kwargs):
+        try:
+            return super(GivenAnswerViewSet, self).create(request, **kwargs)
+        except InvalidAnswerException:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+    def perform_create(self, serializer):
+        question_id = self.kwargs["question_pk"]
+
+        question = get_object_or_404(MultipleChoiceQuestion, pk=question_id)
+
+        serializer.save(question=question, user=self.request.user)
 
 
 class SubmissionViewSet(viewsets.ModelViewSet):
@@ -102,27 +194,28 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = SubmissionSerializer
-    # filter_backends = [filters.TeacherOrOwnedOnly]
+    # ! filter_backends = [filters.TeacherOrOwnedOnly]
     queryset = Submission.objects.all()
 
-    # def dispatch(self, request, *args, **kwargs):
-    #     # this method prevents users from accessing `exercises/id/submissions` for exercises
-    #     # they don't have permission to see
-    #     parent_view = ExerciseViewSet.as_view({"get": "retrieve"})
-    #     original_method = request.method
+    def dispatch(self, request, *args, **kwargs):
+        # this method prevents users from accessing `exercises/id/submissions` for exercises
+        # they don't have permission to see
+        parent_view = ExerciseViewSet.as_view({"get": "retrieve"})
+        original_method = request.method
 
-    #     # get the corresponding Exercise
-    #     request.method = "GET"
-    #     parent_kwargs = {"pk": kwargs["exercise_pk"]}
+        # get the corresponding Exercise
+        request.method = "GET"
+        parent_kwargs = {"pk": kwargs["exercise_pk"]}
 
-    #     parent_response = parent_view(request, *args, **parent_kwargs)
-    #     if parent_response.exception:
-    #         # user tried accessing an exercise they didn't have permission to view
-    #         return parent_response
+        parent_response = parent_view(request, *args, **parent_kwargs)
+        if parent_response.exception:
+            # user tried accessing an exercise they didn't have permission to view
+            return parent_response
 
-    #     request.method = original_method
-    #     return super().dispatch(request, *args, **kwargs)
+        request.method = original_method
+        return super().dispatch(request, *args, **kwargs)
 
+    # ! uncomment
     # def get_throttles(self):
     #     if self.request.method.lower() == "post":
     #         # limit POST request rate
