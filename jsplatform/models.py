@@ -113,11 +113,11 @@ class ExamProgress(models.Model):
 
     # ! make this settable on a per-exam basis instead of hard-coding a default
     # determines what the first type of exam items that should be served is
-    initial_item_type = models.CharField(max_length=1, default="e", choices=EXAM_ITEMS)
+    initial_item_type = models.CharField(max_length=1, default="q", choices=EXAM_ITEMS)
 
     # determines whether the user is to be served multiple choice questions or coding exercises,
     # depending on whether they have completed all items of the other category
-    currently_serving = models.CharField(max_length=1, default="e", choices=EXAM_ITEMS)
+    currently_serving = models.CharField(max_length=1, default="q", choices=EXAM_ITEMS)
 
     current_exercise = models.ForeignKey(
         Exercise,
@@ -398,6 +398,9 @@ class Answer(models.Model):
     updated = models.DateTimeField(auto_now=True)
     selections = models.PositiveIntegerField(default=0)
 
+    def __str__(self):
+        return self.text
+
 
 class GivenAnswer(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -405,8 +408,11 @@ class GivenAnswer(models.Model):
     answer = models.ForeignKey(Answer, null=True, blank=True, on_delete=models.CASCADE)
     timestamp = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return str(self.question) + " " + str(self.answer)
+
     def save(self, *args, **kwargs):
-        if self.answer not in self.question.answers.all():
+        if self.answer not in self.question.answers.all() and self.answer is not None:
             raise InvalidAnswerException
 
         creating = not self.pk  # see if the objects exists already or is being created

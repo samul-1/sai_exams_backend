@@ -78,6 +78,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         # get current exam
         exam = get_object_or_404(Exam, begin_timestamp__lte=now, end_timestamp__gt=now)
+        print("got exam")
 
         # this will either create a new ExamProgress object and get a random item for
         # the user if this is the first visit, or will return the currently active
@@ -132,23 +133,23 @@ class GivenAnswerViewSet(viewsets.ModelViewSet):
     serializer_class = GivenAnswerSerializer
     queryset = GivenAnswer.objects.all()
 
-    def dispatch(self, request, *args, **kwargs):
-        # this method prevents users from accessing `questions/id/given_answers` for questions
-        # they don't have permission to see
-        parent_view = MultipleChoiceQuestionViewSet.as_view({"get": "retrieve"})
-        original_method = request.method
+    # def dispatch(self, request, *args, **kwargs):
+    #     # this method prevents users from accessing `questions/id/given_answers` for questions
+    #     # they don't have permission to see
+    #     parent_view = MultipleChoiceQuestionViewSet.as_view({"get": "retrieve"})
+    #     original_method = request.method
 
-        # get the corresponding Exercise
-        request.method = "GET"
-        parent_kwargs = {"pk": kwargs["question_pk"]}
+    #     # get the corresponding question
+    #     request.method = "GET"
+    #     parent_kwargs = {"pk": kwargs["question_pk"]}
 
-        parent_response = parent_view(request, *args, **parent_kwargs)
-        if parent_response.exception:
-            # user tried accessing a question they didn't have permission to view
-            return parent_response
+    #     parent_response = parent_view(request, *args, **parent_kwargs)
+    #     if parent_response.exception:
+    #         # user tried accessing a question they didn't have permission to view
+    #         return parent_response
 
-        request.method = original_method
-        return super().dispatch(request, *args, **kwargs)
+    #    request.method = original_method
+    #    return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
         queryset = super(GivenAnswerViewSet, self).get_queryset()
@@ -197,23 +198,22 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     # ! filter_backends = [filters.TeacherOrOwnedOnly]
     queryset = Submission.objects.all()
 
-    def dispatch(self, request, *args, **kwargs):
-        # this method prevents users from accessing `exercises/id/submissions` for exercises
-        # they don't have permission to see
-        parent_view = ExerciseViewSet.as_view({"get": "retrieve"})
-        original_method = request.method
+    #! investigate, this is causing 403
+    # def dispatch(self, request, *args, **kwargs):
+    #     # this method prevents users from accessing `exercises/id/submissions` for exercises
+    #     # they don't have permission to see
+    #     parent_view = ExerciseViewSet.as_view({"get": "retrieve"})
+    #     original_method = request.method
+    #     # get the corresponding Exercise
+    #     request.method = "GET"
+    #     parent_kwargs = {"pk": kwargs["exercise_pk"]}
 
-        # get the corresponding Exercise
-        request.method = "GET"
-        parent_kwargs = {"pk": kwargs["exercise_pk"]}
-
-        parent_response = parent_view(request, *args, **parent_kwargs)
-        if parent_response.exception:
-            # user tried accessing an exercise they didn't have permission to view
-            return parent_response
-
-        request.method = original_method
-        return super().dispatch(request, *args, **kwargs)
+    #     parent_response = parent_view(request, *args, **parent_kwargs)
+    #     if parent_response.exception:
+    #         # user tried accessing an exercise they didn't have permission to view
+    #         return parent_response
+    #     request.method = original_method
+    #     return super().dispatch(request, *args, **kwargs)
 
     # ! uncomment
     # def get_throttles(self):
