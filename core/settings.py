@@ -131,10 +131,16 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
     "https://www.googleapis.com/auth/userinfo.profile",
 ]
 
-SOCIAL_AUTH_GOOGLE_OAUTH2_AUTH_EXTRA_ARGUMENTS = {"hd": "studenti.unipi.it"}
-AUTH_EXTRA_ARGUMENTS = {"hd": "studenti.unipi.it"}
-SOCIAL_AUTH_GOOGLE_OAUTH2_WHITELISTED_DOMAINS = ["studenti.unipi.it"]
+# SOCIAL_AUTH_GOOGLE_OAUTH2_AUTH_EXTRA_ARGUMENTS = {"hd": "studenti.unipi.it"}
+# AUTH_EXTRA_ARGUMENTS = {"hd": "studenti.unipi.it"}
 
+# only allow access to uni emails
+SOCIAL_AUTH_GOOGLE_OAUTH2_WHITELISTED_DOMAINS = [
+    "studenti.unipi.it",
+    "unipi.it",
+]
+
+#! env var
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = (
     "02943122018-lb4vg8vh08r3sd3clseoirva79cmjvgn.apps.googleusercontent.com"
 )
