@@ -24,66 +24,81 @@ passed represents the outcome of running the assertion on the program,
 and error is only present if the assertion failed
 */
 
-
 // The VM2 module allows to execute arbitrary code safely using a sandboxed, secure virtual machine
-const {VM} = require('vm2');
-const assert = require("assert")
-const AssertionError = require('assert').AssertionError;
-
+const { VM } = require('vm2')
+const assert = require('assert')
+const AssertionError = require('assert').AssertionError
+const timeout = 1000
 
 // instantiation of the vm that'll run the user-submitted program
 const safevm = new VM({
-    timeout: 1000, // set timeout to 1000ms to prevent endless loops from running forever
-    sandbox: {
-        prettyPrintError,
-        prettyPrintAssertionError,
-        assert,
-        AssertionError,
-    }
+  timeout, // set timeout to prevent endless loops from running forever
+  sandbox: {
+    prettyPrintError,
+    prettyPrintAssertionError,
+    assert,
+    AssertionError
+  }
 })
-
 
 // extracts useful information from vm error messages, throwing away all the data about vm context
 // which is irrelevant to the user-submitted program
-function prettyPrintError(e) {
-    const [errMsg, errStackLine] = e.stack.split("\n")
-    // get line and char position information
-    // the -1 offset on line number is because the code ran by the vm adds a `const output = []` on the
-    // first line before injecting user's code
-    const errStackLineFormatted = 
-        errStackLine
-        .replace(/(.*):(\d+):(\d+)/g, 
-            function(a,b,c,d) {
-                return `on line ${parseInt(c)-1}, at position ${d}` 
-            }
-        )
-    return errMsg +
-          (
-              errMsg.match(/Script execution timed out after/g) ? 
-              "" : // hide line information if error is about the code timing out
-              (" " + errStackLineFormatted)
-          )
-}
+// function prettyPrintError (e) {
+//   const [errMsg, errStackLine] = e.stack.split('\n')
+//   // get line and char position information
+//   // the -1 offset on line number is because the code ran by the vm adds a `const output = []` on the
+//   // first line before injecting user's code
+//   const errStackLineFormatted = errStackLine.replace(
+//     /(.*):(\d+):(\d+)/g,
+//     function (a, b, c, d) {
+//       return `on line ${parseInt(c) - 1}, at position ${d}`
+//     }
+//   )
+//   return (
+//     errMsg +
+//     (errMsg.match(/Script execution timed out after/g)
+//       ? '' // hide line information if error is about the code timing out
+//       : ' ' + errStackLineFormatted)
+//   )
+// }
+function prettyPrintError (e) {
+  const rawStr = e.stack.split(/(.*)at (new Script(.*))?vm.js:([0-9]+)(.*)/)[0]
 
+  if (rawStr.match(/execution timed out/)) {
+    return `Execution timed out after ${timeout} ms`
+  }
+
+  return rawStr.replace(/vm.js:([0-9]+):?([0-9]+)?(.*)/g, function (a, b, c) {
+    return `on line ${parseInt(b) - 1}` + (c ? `, at position ${c})` : '')
+  })
+}
 // does the same as prettyPrintError(), but it's specifically designed to work with AssertionErrors
-function prettyPrintAssertionError(e) {
-    const expected = e.expected
-    const actual = e.actual
-    const [ errMsg, _ ] = e.stack.split("\n")
-    return errMsg + " expected value " + JSON.stringify(expected) + ", but got " + JSON.stringify(actual)
+function prettyPrintAssertionError (e) {
+  const expected = e.expected
+  const actual = e.actual
+  const [errMsg, _] = e.stack.split('\n')
+  return (
+    errMsg +
+    ' expected value ' +
+    JSON.stringify(expected) +
+    ', but got ' +
+    JSON.stringify(actual)
+  )
 }
 
 const userCode = process.argv[2]
 
 const assertions = JSON.parse(process.argv[3])
 
-
 // turn array of strings representing assertion to a series of try-catch's where those assertions
 // are evaluated and the result is pushed to an array - this string will be inlined into the program
 // that the vm will run
 const assertionString = assertions
-    .map(a =>  // put assertion into a try-catch
-    `
+  .map(
+    (
+      a // put assertion into a try-catch
+    ) =>
+      `
         ran = {id: ${a.id}, assertion: '${a.assertion}', is_public: ${a.is_public}}
         try {
             ${a.assertion} // run the assertion
@@ -97,9 +112,9 @@ const assertionString = assertions
             }
         }
         output_wquewoajfjoiwqi.push(ran)
-    `)
-    .reduce((a,b) => a+b, "") // reduce array of strings to a string
-
+    `
+  )
+  .reduce((a, b) => a + b, '') // reduce array of strings to a string
 
 // support for executing the user-submitted program
 // contains a utility function to stringify errors, the user code, and a series of try-catch's
@@ -130,14 +145,12 @@ ${assertionString}
 // output outcome object to console
 output_wquewoajfjoiwqi`
 
-
 try {
-    const outcome = safevm.run(runnableProgram) // run program
-    console.log(JSON.stringify({ tests: outcome})) // output outcome so Django can collect it
-} catch(e) {
-    console.log(JSON.stringify({ error: prettyPrintError(e) }))
+  const outcome = safevm.run(runnableProgram) // run program
+  console.log(JSON.stringify({ tests: outcome })) // output outcome so Django can collect it
+} catch (e) {
+  console.log(JSON.stringify({ error: prettyPrintError(e) }))
 }
-
 
 /*
 this stuff is no longer needed and is to be removed soon
