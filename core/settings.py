@@ -97,6 +97,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
 ]
 
+DJOSER = {"SERIALIZERS": {"current_user": "users.serializers.UserSerializer"}}
+
 ROOT_URLCONF = "core.urls"
 
 TEMPLATES = [

@@ -62,16 +62,23 @@ const safevm = new VM({
 //   )
 // }
 function prettyPrintError (e) {
-  const rawStr = e.stack.split(/(.*)at (new Script(.*))?vm.js:([0-9]+)(.*)/)[0]
+  const tokens = e.stack.split(/(.*)at (new Script(.*))?vm.js:([0-9]+)(.*)/)
+  const rawStr = tokens[0] // error message
 
   if (rawStr.match(/execution timed out/)) {
+    // time out: no other information available
     return `Execution timed out after ${timeout} ms`
   }
 
-  return rawStr.replace(/vm.js:([0-9]+):?([0-9]+)?(.*)/g, function (a, b, c) {
-    return `on line ${parseInt(b) - 1}` + (c ? `, at position ${c})` : '')
-  })
+  const formattedStr = rawStr.replace(
+    /(.*)vm.js:([0-9]+):?([0-9]+)?(.*)/g,
+    function (a, b, c, d) {
+      return `on line ${parseInt(c) - 1}` + (d ? `, at position ${d})` : '')
+    }
+  ) // actual line of the error is one less than what's detected due to an additional line of code injected in the vm
+  return formattedStr
 }
+
 // does the same as prettyPrintError(), but it's specifically designed to work with AssertionErrors
 function prettyPrintAssertionError (e) {
   const expected = e.expected

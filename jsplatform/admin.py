@@ -4,6 +4,7 @@ from .models import (
     Answer,
     Exam,
     ExamProgress,
+    ExamReport,
     Exercise,
     GivenAnswer,
     MultipleChoiceQuestion,
@@ -55,4 +56,9 @@ class AnswerAdmin(admin.ModelAdmin):
 
 @admin.register(GivenAnswer)
 class GivenAnswerAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(ExamReport)
+class ExamReportAdmin(admin.ModelAdmin):
     pass

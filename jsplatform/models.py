@@ -53,7 +53,94 @@ class Exam(models.Model):
         return item
 
 
+class ExamReport(models.Model):
+    """
+    A report generated at the end of an exam detailing the submissions and answers
+    given by the students
+    """
+
+    exam = models.OneToOneField(Exam, null=True, on_delete=models.SET_NULL)
+    details = models.JSONField(null=True, blank=True)
+    generated_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL
+    )
+    created = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        # todo add check to prevent creation if the exam isn't over yet
+
+        creating = not self.pk  # see if the objects exists already or is being created
+        super(ExamReport, self).save(*args, **kwargs)  # create the object
+        if creating:
+            # populate report
+            print("populating")
+            self.populate()
+
+    def populate(self):
+        """
+        Populates the report adding all the needed details
+        """
+
+        # get all users who participated into the exam
+        participations = self.exam.participations.all()
+        participants = list(map(lambda p: p.user, participations))
+
+        # get all exercises and questions for this exam
+        questions = self.exam.questions.all().prefetch_related("given_answers")
+        exercises = self.exam.exercises.all().prefetch_related("submissions")
+
+        details = []
+
+        for participant in participants:
+            # process each participants
+            participant_details = {
+                "email": participant.email,
+                "submissions": [],  # data about exercise submission
+                "answers": [],  # data about question answers
+            }
+
+            # get submission data for this participant for each exercise in the exam
+            for exercise in exercises:
+                exercise_details = {"exercise": exercise.pk}  # exercise.text
+                try:
+                    submission = exercise.submissions.get(
+                        user=participant, has_been_turned_in=True
+                    )
+                    exercise_details["code"] = submission.code
+                    exercise_details[
+                        "passed_testcases"
+                    ] = submission.get_passed_testcases()
+                except Submission.DoesNotExist:  # no submission was turned in
+                    exercise_details["code"] = None
+
+                participant_details["submissions"].append(exercise_details)
+
+            # get submission data for this participant for each question in the exam
+            for question in questions:
+                question_details = {"question": question.pk}  # question.text
+                try:
+                    given_answer = question.given_answers.get(user=participant)
+                    question_details["given_answer"] = (
+                        given_answer.answer.pk  # given_answer.answer.text
+                        if given_answer.answer is not None
+                        else None
+                    )
+                except GivenAnswer.DoesNotExist:  # no answer was given (not even skip)
+                    question_details["given_answer"] = None
+
+                participant_details["answers"].append(question_details)
+
+            details.append(participant_details)
+
+        self.details = details
+        self.save()
+
+
 class MultipleChoiceQuestion(models.Model):
+    """
+    A multiple choice question shown in exams
+    """
+
     text = models.TextField()
     exam = models.ForeignKey(
         Exam, null=True, on_delete=models.SET_NULL, related_name="questions"
@@ -109,7 +196,9 @@ class ExamProgress(models.Model):
         related_name="exams_progress",
         on_delete=models.CASCADE,
     )
-    exam = models.ForeignKey(Exam, on_delete=models.CASCADE)
+    exam = models.ForeignKey(
+        Exam, on_delete=models.CASCADE, related_name="participations"
+    )
 
     # ! make this settable on a per-exam basis instead of hard-coding a default
     # determines what the first type of exam items that should be served is
@@ -306,6 +395,9 @@ class Submission(models.Model):
     def __str__(self):
         return self.code
 
+    def get_passed_testcases(self):
+        return len([t for t in self.details["tests"] if t["passed"]])
+
     def public_details(self):
         """
         Returns a subset of the details field dict containing information about public tests only,
@@ -389,6 +481,10 @@ class Submission(models.Model):
 
 
 class Answer(models.Model):
+    """
+    An answer to a multiple choice question
+    """
+
     question = models.ForeignKey(
         MultipleChoiceQuestion, on_delete=models.CASCADE, related_name="answers"
     )
@@ -403,8 +499,14 @@ class Answer(models.Model):
 
 
 class GivenAnswer(models.Model):
+    """
+    An answer to a multiple choice question given by a user during an exam
+    """
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    question = models.ForeignKey(MultipleChoiceQuestion, on_delete=models.CASCADE)
+    question = models.ForeignKey(
+        MultipleChoiceQuestion, on_delete=models.CASCADE, related_name="given_answers"
+    )
     answer = models.ForeignKey(Answer, null=True, blank=True, on_delete=models.CASCADE)
     timestamp = models.DateTimeField(auto_now_add=True)
 

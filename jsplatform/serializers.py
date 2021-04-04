@@ -32,6 +32,25 @@ class ExamSerializer(serializers.ModelSerializer):
             self.fields["submissions"] = serializers.SerializerMethodField()
             self.fields["question"] = serializers.SerializerMethodField()
 
+    def create(self, validated_data):
+        questions = validated_data.pop("questions")
+        exercises = validated_data.pop("exercises")
+
+        exam = Exam.objects.create(**validated_data)
+        print("LOOKING FOR REQUEST")
+        print(self.context)
+        # create objects for each question and exercise
+        for question in questions:
+            q = MultipleChoiceQuestionSerializer(data=question, context=self.context)
+            q.is_valid(raise_exception=True)
+            q.save(exam=exam)
+        for exercise in exercises:
+            e = ExerciseSerializer(data=exercise, context=self.context)
+            e.is_valid(raise_exception=True)
+            e.save(exam=exam)
+
+        return exam
+
     def get_exercise(self, obj):
         try:
             return ExerciseSerializer(
@@ -63,7 +82,7 @@ class ExamSerializer(serializers.ModelSerializer):
 
 class TestCaseSerializer(serializers.ModelSerializer):
     """
-    A serializer for TestCase model showing its associated assrtion and public/secret status
+    A serializer for TestCase model showing its associated assertion and public/secret status
     """
 
     class Meta:
@@ -74,6 +93,10 @@ class TestCaseSerializer(serializers.ModelSerializer):
 
 
 class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
+    """
+    A serializer for a multiple choice question, showing its text and answers
+    """
+
     class Meta:
         model = MultipleChoiceQuestion
         fields = ["id", "text"]
@@ -117,6 +140,8 @@ class AnswerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Answer
         fields = ["id", "text", "is_right_answer"]
+
+    # todo add check to only add is_right_answer field when accessed by a teacher
 
 
 class ExerciseSerializer(serializers.ModelSerializer):

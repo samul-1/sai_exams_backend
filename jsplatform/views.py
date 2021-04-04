@@ -7,6 +7,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 
 from . import filters, throttles
@@ -14,6 +15,7 @@ from .exceptions import InvalidAnswerException, NotEligibleForTurningIn
 from .models import (
     Exam,
     ExamProgress,
+    ExamReport,
     Exercise,
     GivenAnswer,
     MultipleChoiceQuestion,
@@ -22,6 +24,7 @@ from .models import (
     User,
 )
 from .permissions import IsTeacherOrReadOnly, TeachersOnly
+from .renderers import ReportRenderer
 from .serializers import (
     ExamSerializer,
     ExerciseSerializer,
@@ -33,6 +36,12 @@ from .serializers import (
 
 
 class MultipleChoiceQuestionViewSet(viewsets.ModelViewSet):
+    """
+    A viewset for viewing, creating, and editing multiple choice questions
+
+    Only staff members can create or update multiple choice questions
+    """
+
     serializer_class = MultipleChoiceQuestionSerializer
     queryset = MultipleChoiceQuestion.objects.all()
 
@@ -65,6 +74,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     queryset = Exam.objects.all()
     # only allow teachers to access exams' data
     permission_classes = [TeachersOnly]
+    renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
 
     @action(detail=False, methods=["post"], permission_classes=[~TeachersOnly])
     def my_exam(self, request, **kwargs):
@@ -106,6 +116,25 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         serializer = ExamSerializer(instance=exam, context=context, **kwargs)
         return Response(serializer.data)
+
+    @action(detail=True, methods=["post"])
+    def report(self, request, **kwargs):
+        exam = self.get_object()
+        report, _ = ExamReport.objects.get_or_create(exam=exam)
+        return Response(report.details)
+
+    def get_renderer_context(self):
+        context = super().get_renderer_context()
+        # print(context["view"].get_object().examreport)
+        # try:
+        #     header = context["view"].get_object().examreport.header
+        # except Exception:  #!
+        #     print("no")
+        #     header = None
+        # context["header"] = header
+        # print("HEADER")
+        # print(context["header"])
+        return context
 
 
 class ExerciseViewSet(viewsets.ModelViewSet):
