@@ -40,6 +40,8 @@ class MultipleChoiceQuestionViewSet(viewsets.ModelViewSet):
     A viewset for viewing, creating, and editing multiple choice questions
 
     Only staff members can create or update multiple choice questions
+
+    Regular users can only view questions they're currently assigned
     """
 
     serializer_class = MultipleChoiceQuestionSerializer
@@ -49,14 +51,23 @@ class MultipleChoiceQuestionViewSet(viewsets.ModelViewSet):
         """
         Restricts the queryset so users can only see their current question
         """
-        # ? what if there can be multiple active exams at the same time?
         now = timezone.localtime(timezone.now())
-        # get current exam
-        exam = get_object_or_404(Exam, begin_timestamp__lte=now, end_timestamp__gt=now)
-        progress = ExamProgress.objects.get(exam=exam, user=self.request.user)
 
+        # get exams that are currently in progress
+        exams = Exam.objects.filter(begin_timestamp__lte=now, end_timestamp__gt=now)
+
+        # get ExamProgress objects for this user for each exam
+        progress_objects = ExamProgress.objects.filter(
+            exam__in=exams, user=self.request.user, current_question__isnull=False
+        )
+
+        # get default queryset
         queryset = super(MultipleChoiceQuestionViewSet, self).get_queryset()
-        queryset = queryset.filter(pk=progress.current_question.pk)
+
+        # get questions that appear as `current_question` in one of the ExamProgress object
+        queryset = queryset.filter(
+            pk__in=list(map(lambda p: p.current_question.pk, progress_objects))
+        )
         return queryset.prefetch_related("answers")
 
 
@@ -64,19 +75,18 @@ class ExamViewSet(viewsets.ModelViewSet):
     """
     A viewset for viewing, creating, and editing exams
 
-    Only staff members can create, update, or access arbitrary exam entries
-    Regular users can only access the current exam, defined as the only exam whose begin date is in the past
-    and end date is in the future
-    ! this definition might need to change to allow multiple active exams at once
+    Only staff members can create, update exams, or access all exams
+    Regular users can only view current exam(s), that is those whose begin timestamp is
+    in the past and end timestamp is in the future, in read-only
     """
 
     serializer_class = ExamSerializer
     queryset = Exam.objects.all()
     # only allow teachers to access exams' data
     permission_classes = [TeachersOnly]
-    renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
+    # renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
 
-    @action(detail=False, methods=["post"], permission_classes=[~TeachersOnly])
+    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def my_exam(self, request, **kwargs):
         """
         Assigns an exercise from active exam to user if they haven't been assigned one yet;
@@ -87,9 +97,19 @@ class ExamViewSet(viewsets.ModelViewSet):
         now = timezone.localtime(timezone.now())
 
         # get current exam
-        exam = get_object_or_404(Exam, begin_timestamp__lte=now, end_timestamp__gt=now)
-        print("got exam")
+        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))
 
+        if exam.begin_timestamp > now:
+            return Response(
+                status=status.HTTP_404_NOT_FOUND,
+                data={"message": "L'esame non è  ancora iniziato"},
+            )
+
+        if exam.end_timestamp <= now:
+            return Response(
+                status=status.HTTP_404_NOT_FOUND,
+                data={"message": "L'esame è terminato"},
+            )
         # this will either create a new ExamProgress object and get a random item for
         # the user if this is the first visit, or will return the currently active
         # item (question or coding exercise) if it's not
@@ -142,6 +162,8 @@ class ExerciseViewSet(viewsets.ModelViewSet):
     A viewset for viewing, creating, and editing exercises
 
     Only staff members can create or update exercises
+
+    Regular users can only view exercises they're currently assigned
     """
 
     serializer_class = ExerciseSerializer
@@ -154,7 +176,26 @@ class ExerciseViewSet(viewsets.ModelViewSet):
     # ! filter_backends = [filters.TeacherOrAssignedOnly]
 
     def get_queryset(self):
+        """
+        Restricts the queryset so users can only see their current exercise
+        """
+        now = timezone.localtime(timezone.now())
+
+        # get exams that are currently in progress
+        exams = Exam.objects.filter(begin_timestamp__lte=now, end_timestamp__gt=now)
+
+        # get ExamProgress objects for this user for each exam
+        progress_objects = ExamProgress.objects.filter(
+            exam__in=exams, user=self.request.user, current_exercise__isnull=False
+        )
+
+        # get default queryset
         queryset = super(ExerciseViewSet, self).get_queryset()
+
+        # get questions that appear as `current_question` in one of the ExamProgress object
+        queryset = queryset.filter(
+            pk__in=list(map(lambda p: p.current_exercise.pk, progress_objects))
+        )
         return queryset.prefetch_related("testcases")
 
 
@@ -217,7 +258,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     A viewset for listing, retrieving, and creating submissions to a specific exercise, and
     turning in eligible submissions.
 
-    POST requests are limited to once every 30 seconds.
+    POST requests are limited to one every 30 seconds.
 
     Staff members can access submissions by all users to a specific exercise, whereas
     normal users can only access theirs

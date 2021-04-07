@@ -8,3 +8,7 @@ class NotEligibleForTurningIn(Exception):
 
 class InvalidAnswerException(Exception):
     pass
+
+
+class ExamNotOverYet(Exception):
+    pass

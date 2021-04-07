@@ -14,11 +14,10 @@ from .models import (
 class ExamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exam
-        fields = "__all__"
+        fields = ["id", "name", "begin_timestamp", "end_timestamp"]
 
     def __init__(self, *args, **kwargs):
         super(ExamSerializer, self).__init__(*args, **kwargs)
-        print(self)
         if self.context["request"].user.is_teacher:
             # if requesting user is a teacher, show all exercises and questions for this exam
             self.fields["exercises"] = ExerciseSerializer(many=True, **kwargs)
@@ -37,8 +36,7 @@ class ExamSerializer(serializers.ModelSerializer):
         exercises = validated_data.pop("exercises")
 
         exam = Exam.objects.create(**validated_data)
-        print("LOOKING FOR REQUEST")
-        print(self.context)
+
         # create objects for each question and exercise
         for question in questions:
             q = MultipleChoiceQuestionSerializer(data=question, context=self.context)
@@ -50,6 +48,65 @@ class ExamSerializer(serializers.ModelSerializer):
             e.save(exam=exam)
 
         return exam
+
+    def update(self, instance, validated_data):
+        # get data about exercises and questions
+        questions_data = validated_data.pop("questions")
+        exercises_data = validated_data.pop("exercises")
+
+        # update Exam instance
+        instance = super(ExamSerializer, self).update(instance, validated_data)
+
+        questions = instance.questions.all()
+        exercises = instance.exercises.all()
+
+        # update each question
+        for question_data in questions_data:
+            question, _ = MultipleChoiceQuestion.objects.get_or_create(
+                pk=question_data["id"], exam=instance
+            )
+
+            save_id = question_data.pop("id")  # get rid of frontend generated id
+
+            serializer = MultipleChoiceQuestionSerializer(
+                question, data=question_data, context=self.context
+            )
+            serializer.is_valid(raise_exception=True)
+
+            # update question
+            serializer.update(instance=question, validated_data=question_data)
+
+            # remove question from the list of those still to process
+            questions = questions.exclude(pk=save_id)
+
+        # remove any questions for which data wasn't sent (i.e. user deleted them)
+        for question in questions:
+            question.delete()
+
+        # update each exercise
+        for exercise_data in exercises_data:
+            exercise, _ = Exercise.objects.get_or_create(
+                pk=exercise_data["id"], exam=instance
+            )
+
+            save_id = exercise_data.pop("id")  # get rid of frontend generated id
+
+            serializer = ExerciseSerializer(
+                exercise, data=exercise_data, context=self.context
+            )
+            serializer.is_valid(raise_exception=True)
+
+            # update exercise
+            serializer.update(instance=exercise, validated_data=exercise_data)
+
+            # remove exercise from the list of those still to process
+            exercises = exercises.exclude(pk=save_id)
+
+        # remove any exercises for which data wasn't sent (i.e. user deleted them)
+        for exercise in exercises:
+            exercise.delete()
+
+        return instance
 
     def get_exercise(self, obj):
         try:
@@ -89,7 +146,14 @@ class TestCaseSerializer(serializers.ModelSerializer):
         model = TestCase
         fields = ["id", "assertion", "is_public"]
 
-    id = serializers.IntegerField(required=False)
+    def __init__(self, *args, **kwargs):
+        super(TestCaseSerializer, self).__init__(*args, **kwargs)
+        self.fields["id"] = serializers.IntegerField(required=False)
+
+    def create(self, validated_data):
+        instance = TestCase.objects.create(**validated_data)
+        print(instance.pk)
+        return instance
 
 
 class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
@@ -103,7 +167,9 @@ class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super(MultipleChoiceQuestionSerializer, self).__init__(*args, **kwargs)
-        self.fields["answers"] = AnswerSerializer(many=True)
+        self.fields["answers"] = AnswerSerializer(many=True, **kwargs)
+        # ! keep an eye on this
+        self.fields["id"] = serializers.IntegerField(required=False)
 
     def create(self, validated_data):
         answers = validated_data.pop("answers")
@@ -125,13 +191,28 @@ class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
             instance, validated_data
         )
 
-        answers = list(instance.answers.all())
+        answers = instance.answers.all()
+
         # update each answer
         for answer_data in answers_data:
-            a = answers.pop(0)
-            a.text = answer_data.get("text", a.text)
-            a.is_right_answer = answer_data.get("is_right_answer", a.is_right_answer)
-            a.save()
+            answer, _ = Answer.objects.get_or_create(
+                pk=answer_data["id"], question=instance
+            )
+
+            save_id = answer_data.pop("id")  # get rid of frontend generated id
+
+            serializer = AnswerSerializer(
+                answer, data=answer_data, context=self.context
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.update(instance=answer, validated_data=answer_data)
+
+            # remove answer from the list of those still to process
+            answers = answers.exclude(pk=save_id)
+
+        # remove any answers for which data wasn't sent (i.e. user deleted them)
+        for answer in answers:
+            answer.delete()
 
         return instance
 
@@ -139,9 +220,14 @@ class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
 class AnswerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Answer
-        fields = ["id", "text", "is_right_answer"]
+        fields = ["id", "text"]
 
-    # todo add check to only add is_right_answer field when accessed by a teacher
+    def __init__(self, *args, **kwargs):
+        super(AnswerSerializer, self).__init__(*args, **kwargs)
+        self.fields["id"] = serializers.IntegerField(required=False)
+        if self.context["request"].user.is_teacher:
+            # only show whether this is the right answer to teachers
+            self.fields["is_right_answer"] = serializers.BooleanField()
 
 
 class ExerciseSerializer(serializers.ModelSerializer):
@@ -155,6 +241,8 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
         if self.context["request"].user.is_teacher:
             self.fields["testcases"] = TestCaseSerializer(many=True)
+            # !
+            self.fields["id"] = serializers.IntegerField(required=False)
         else:
             # only show public test cases to non-staff users
             self.fields["public_testcases"] = TestCaseSerializer(
@@ -163,7 +251,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Exercise
-        fields = ["id", "text", "starting_code"]
+        fields = ["id", "text", "starting_code", "min_passing_testcases"]
 
     def create(self, validated_data):
         testcases = validated_data.pop("testcases")
@@ -183,13 +271,28 @@ class ExerciseSerializer(serializers.ModelSerializer):
         # update Exercise instance
         instance = super(ExerciseSerializer, self).update(instance, validated_data)
 
-        testcases = list(instance.testcases.all())
+        testcases = instance.testcases.all()
+
         # update each test case
         for testcase_data in testcases_data:
-            t = testcases.pop(0)
-            t.assertion = testcase_data.get("assertion", t.assertion)
-            t.is_public = testcase_data.get("is_public", t.is_public)
-            t.save()
+            testcase, _ = TestCase.objects.get_or_create(
+                pk=testcase_data["id"], exercise=instance
+            )
+
+            save_id = testcase_data.pop("id")  # get rid of frontend generated id
+
+            serializer = TestCaseSerializer(
+                testcase, data=testcase_data, context=self.context
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.update(instance=testcase, validated_data=testcase_data)
+
+            # remove testcase from the list of those still to process
+            testcases = testcases.exclude(pk=save_id)
+
+        # remove any testcases for which data wasn't sent (i.e. user deleted them)
+        for testcase in testcases:
+            testcase.delete()
 
         return instance
 

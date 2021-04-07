@@ -7,9 +7,11 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.db.models import JSONField
+from django.utils import timezone
 from users.models import User
 
 from .exceptions import (
+    ExamNotOverYet,
     InvalidAnswerException,
     NotEligibleForTurningIn,
     SubmissionAlreadyTurnedIn,
@@ -67,18 +69,21 @@ class ExamReport(models.Model):
     created = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        # todo add check to prevent creation if the exam isn't over yet
+        now = timezone.localtime(timezone.now())
+
+        if self.exam.end_timestamp > now:
+            # prevent creation of report if exam is still undergoing
+            raise ExamNotOverYet
 
         creating = not self.pk  # see if the objects exists already or is being created
         super(ExamReport, self).save(*args, **kwargs)  # create the object
         if creating:
             # populate report
-            print("populating")
             self.populate()
 
     def populate(self):
         """
-        Populates the report adding all the needed details
+        Populates the report, adding all the needed details
         """
 
         # get all users who participated into the exam
@@ -92,7 +97,8 @@ class ExamReport(models.Model):
         details = []
 
         for participant in participants:
-            # process each participants
+            # process each participant
+
             participant_details = {
                 "email": participant.email,
                 "submissions": [],  # data about exercise submission
@@ -244,6 +250,7 @@ class ExamProgress(models.Model):
         # ! by all means refactor
         if self.currently_serving == "c":
             return
+
         if self.currently_serving == "q":
             if self.initial_item_type == "q":
                 self.currently_serving = "e"
@@ -352,8 +359,6 @@ class TestCase(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
 
-    objects = models.Manager()  # ?
-
     def __str__(self):
         return str(self.exercise) + " | " + self.assertion
 
@@ -386,8 +391,6 @@ class Submission(models.Model):
 
     # True if marked by user as their final submission
     has_been_turned_in = models.BooleanField(default=False)
-
-    # TODO add constraint to make sure there isn't more than one turned in submission per exercise per user
 
     class Meta:
         ordering = ["-timestamp"]
@@ -520,5 +523,10 @@ class GivenAnswer(models.Model):
         creating = not self.pk  # see if the objects exists already or is being created
         super(GivenAnswer, self).save(*args, **kwargs)  # create the object
         if creating:
+            if self.answer is not None:
+                # increment number of selections for selected answer
+                self.answer.selections += 1
+                self.answer.save()
+
             # get next exam item
             self.question.exam.get_item_for(self.user, force_next=True)
