@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/3.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.1/ref/settings/
 """
-
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,7 +20,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "mj5lrnzbas!-_)6@eh9$%ta_b2fj_$up*t)qqvr9+5flcz*tga"
+SECRET_KEY = os.environ.get("SECRET_KEY", None)
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -143,11 +144,10 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_WHITELISTED_DOMAINS = [
     "unipi.it",
 ]
 
-#! env var
-SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = (
-    "02943122018-lb4vg8vh08r3sd3clseoirva79cmjvgn.apps.googleusercontent.com"
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.environ.get("SOCIAL_AUTH_GOOGLE_OAUTH2_KEY", None)
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.environ.get(
+    "SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET", None
 )
-SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = "SQlnUfRiQkR3mKoz3FkKz64T"
 
 
 WSGI_APPLICATION = "core.wsgi.application"

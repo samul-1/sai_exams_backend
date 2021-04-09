@@ -62,11 +62,15 @@ class ExamSerializer(serializers.ModelSerializer):
 
         # update each question
         for question_data in questions_data:
-            question, _ = MultipleChoiceQuestion.objects.get_or_create(
-                pk=question_data["id"], exam=instance
-            )
+            if question_data.get("id") is not None:  # try:
+                question = MultipleChoiceQuestion.objects.get(pk=question_data["id"])
+                save_id = question_data.pop("id")  # question_data["id"]
+            else:  # except MultipleChoiceQuestion.DoesNotExist:
+                question = MultipleChoiceQuestion(exam=instance)
+                question.save()
+                save_id = question.pk
 
-            save_id = question_data.pop("id")  # get rid of frontend generated id
+            # del question_data["id"]  # get rid of frontend generated id
 
             serializer = MultipleChoiceQuestionSerializer(
                 question, data=question_data, context=self.context
@@ -85,11 +89,15 @@ class ExamSerializer(serializers.ModelSerializer):
 
         # update each exercise
         for exercise_data in exercises_data:
-            exercise, _ = Exercise.objects.get_or_create(
-                pk=exercise_data["id"], exam=instance
-            )
+            if exercise_data.get("id") is not None:  # try:
+                exercise = Exercise.objects.get(pk=exercise_data["id"])
+                save_id = exercise_data.pop("id")  # exercise_data["id"]
+            else:  # except Exercise.DoesNotExist:
+                exercise = Exercise(exam=instance)
+                exercise.save()
+                save_id = exercise.pk
 
-            save_id = exercise_data.pop("id")  # get rid of frontend generated id
+            # del exercise_data["id"]  # get rid of frontend generated id
 
             serializer = ExerciseSerializer(
                 exercise, data=exercise_data, context=self.context
@@ -195,11 +203,19 @@ class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
 
         # update each answer
         for answer_data in answers_data:
-            answer, _ = Answer.objects.get_or_create(
-                pk=answer_data["id"], question=instance
-            )
+            # answer, _ = Answer.objects.get_or_create(
+            #     pk=answer_data["id"], question=instance
+            # )
 
-            save_id = answer_data.pop("id")  # get rid of frontend generated id
+            if answer_data.get("id") is not None:  # try:
+                answer = Answer.objects.get(pk=answer_data["id"])
+                save_id = answer_data.pop("id")  # answer_data["id"]
+            else:  # except Answer.DoesNotExist:
+                answer = Answer(question=instance)
+                answer.save()
+                save_id = answer.pk
+
+            # del answer_data["id"]  # get rid of frontend generated id
 
             serializer = AnswerSerializer(
                 answer, data=answer_data, context=self.context
@@ -275,11 +291,18 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
         # update each test case
         for testcase_data in testcases_data:
-            testcase, _ = TestCase.objects.get_or_create(
-                pk=testcase_data["id"], exercise=instance
-            )
+            # testcase, _ = TestCase.objects.get_or_create(
+            #     pk=testcase_data["id"], exercise=instance
+            # )
+            if testcase_data.get("id") is not None:  # try:
+                testcase = TestCase.objects.get(pk=testcase_data["id"])
+                save_id = testcase_data.pop("id")  # testcase_data["id"]
+            else:  # except TestCase.DoesNotExist:
+                testcase = TestCase(exercise=instance)
+                testcase.save()
+                save_id = testcase.pk
 
-            save_id = testcase_data.pop("id")  # get rid of frontend generated id
+            # del testcase_data["id"]  # get rid of frontend generated id
 
             serializer = TestCaseSerializer(
                 testcase, data=testcase_data, context=self.context
