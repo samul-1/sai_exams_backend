@@ -13,13 +13,12 @@ from users.models import User
 from .exceptions import (
     ExamNotOverYet,
     InvalidAnswerException,
+    InvalidCategoryType,
     NotEligibleForTurningIn,
+    OutOfCategories,
     SubmissionAlreadyTurnedIn,
 )
 from .utils import run_code_in_vm
-
-# class User(AbstractUser):
-#     is_teacher = models.BooleanField(default=False)
 
 
 class Exam(models.Model):
@@ -53,6 +52,24 @@ class Exam(models.Model):
 
         item = progress.get_next_item(force_next=(created or force_next))
         return item
+
+
+class Category(models.Model):
+    EXAM_ITEMS = (
+        ("q", "QUESTIONS"),
+        ("e", "EXERCISES"),
+    )
+
+    exam = models.ForeignKey(
+        Exam, null=True, on_delete=models.SET_NULL, related_name="categories"
+    )
+    name = models.TextField()
+    amount = models.PositiveIntegerField(default=1)
+    # determines whether this category is used for JS exercises or questions
+    item_type = models.CharField(max_length=1, choices=EXAM_ITEMS)
+
+    def __str__(self):
+        return self.name
 
 
 class ExamReport(models.Model):
@@ -128,6 +145,7 @@ class ExamReport(models.Model):
 
             participant_details = {
                 "email": participant.email,
+                "corso": participant.course,
             }
 
             # get submission data for this participant for each exercise in the exam
@@ -138,29 +156,21 @@ class ExamReport(models.Model):
                     submission = exercise.submissions.get(
                         user=participant, has_been_turned_in=True
                     )
-                    exercise_details[
-                        f"Esercizio { exerciseCount } sottomissione"
-                    ] = submission.code
-                    exercise_details[
-                        f"Esercizio {exerciseCount} orario consegna"
-                    ] = str(submission.timestamp)
-                    exercise_details[
-                        f"Esercizio {exerciseCount} testcase superari"
-                    ] = submission.get_passed_testcases()
-                    exercise_details[f"Esercizio {exerciseCount} testcase falliti"] = (
-                        exercise.testcases.count() - submission.get_passed_testcases()
-                    )
                 except Submission.DoesNotExist:  # no submission was turned in
-                    exercise_details[
-                        f"Esercizio { exerciseCount } sottomissione"
-                    ] = None
-                    exercise_details[
-                        f"Esercizio {exerciseCount} orario consegna"
-                    ] = None
-                    exercise_details[f"Esercizio {exerciseCount} testcase superari"] = 0
-                    exercise_details[
-                        f"Esercizio {exerciseCount} testcase falliti"
-                    ] = exercise.testcases.count()
+                    submission = Submission()  # dummy submission
+
+                exercise_details[
+                    f"Esercizio { exerciseCount } sottomissione"
+                ] = submission.code
+                exercise_details[f"Esercizio {exerciseCount} orario consegna"] = str(
+                    submission.timestamp
+                )
+                exercise_details[
+                    f"Esercizio {exerciseCount} testcase superati"
+                ] = submission.get_passed_testcases()
+                exercise_details[f"Esercizio {exerciseCount} testcase falliti"] = (
+                    exercise.testcases.count() - submission.get_passed_testcases()
+                )
                 participant_details.update(exercise_details)
                 exerciseCount += 1
 
@@ -172,27 +182,23 @@ class ExamReport(models.Model):
                 }  # question.text
                 try:
                     given_answer = question.given_answers.get(user=participant)
-                    question_details[f"Domanda { questionCount } risposta data"] = (
-                        given_answer.answer.text  # given_answer.answer.text
-                        if given_answer.answer is not None
-                        else None
-                    )
-                    question_details[
-                        f"Domanda { questionCount } orario risposta"
-                    ] = str(given_answer.timestamp)
-                    question_details[f"Domanda { questionCount } risposta corretta"] = (
-                        given_answer.answer.is_right_answer  # given_answer.answer.text
-                        if given_answer.answer is not None
-                        else False
-                    )
+
                 except GivenAnswer.DoesNotExist:  # no answer was given (not even skip)
-                    question_details[f"Domanda { questionCount } risposta data"] = None
-                    question_details[
-                        f"Domanda { questionCount } orario risposta"
-                    ] = None  # "null"?
-                    question_details[
-                        f"Domanda { questionCount } risposta corretta"
-                    ] = False
+                    given_answer = GivenAnswer(answer=None)  # dummy answer
+
+                question_details[f"Domanda { questionCount } risposta data"] = (
+                    given_answer.answer.text  # given_answer.answer.text
+                    if given_answer.answer is not None
+                    else None
+                )
+                question_details[f"Domanda { questionCount } orario risposta"] = str(
+                    given_answer.timestamp
+                )
+                question_details[f"Domanda { questionCount } risposta corretta"] = (
+                    given_answer.answer.is_right_answer  # given_answer.answer.text
+                    if given_answer.answer is not None
+                    else False
+                )
 
                 participant_details.update(question_details)
                 questionCount += 1
@@ -209,6 +215,9 @@ class MultipleChoiceQuestion(models.Model):
     """
 
     text = models.TextField()
+    category = models.ForeignKey(
+        Category, on_delete=models.SET_NULL, null=True, related_name="questions"
+    )
     exam = models.ForeignKey(
         Exam, null=True, on_delete=models.SET_NULL, related_name="questions"
     )
@@ -218,6 +227,11 @@ class MultipleChoiceQuestion(models.Model):
     def __str__(self):
         return self.text
 
+    def save(self, *args, **kwargs):
+        if self.category.item_type != "q":
+            raise InvalidCategoryType
+        super(MultipleChoiceQuestion, self).save(*args, **kwargs)
+
 
 class Exercise(models.Model):
     """
@@ -226,6 +240,9 @@ class Exercise(models.Model):
 
     exam = models.ForeignKey(
         Exam, null=True, on_delete=models.SET_NULL, related_name="exercises"
+    )
+    category = models.ForeignKey(
+        Category, on_delete=models.SET_NULL, null=True, related_name="exercises"
     )
     text = models.TextField()
     starting_code = models.TextField(blank=True)
@@ -238,6 +255,11 @@ class Exercise(models.Model):
 
     def __str__(self):
         return self.text
+
+    def save(self, *args, **kwargs):
+        if self.category.item_type != "e":
+            raise InvalidCategoryType
+        super(Exercise, self).save(*args, **kwargs)
 
     def public_testcases(self):
         """
@@ -274,6 +296,15 @@ class ExamProgress(models.Model):
     # determines whether the user is to be served multiple choice questions or coding exercises,
     # depending on whether they have completed all items of the other category
     currently_serving = models.CharField(max_length=1, default="q", choices=EXAM_ITEMS)
+
+    # determines which category the exercises/questions that are being served must belong to
+    current_category = models.ForeignKey(
+        Category, null=True, on_delete=models.SET_NULL, related_name="current_in_exams"
+    )
+    # holds the counter of exercises/questions that have been served for the current category
+    served_for_current_category = models.PositiveIntegerField(default=0)
+    # lists the categories for which questions/exercises have been served already
+    exhausted_categories = models.ManyToManyField(Category, blank=True)
 
     current_exercise = models.ForeignKey(
         Exercise,
@@ -323,6 +354,30 @@ class ExamProgress(models.Model):
             self.currently_serving = "c"
         self.save()
 
+    def move_to_next_category(self):
+        """
+        Resets the `served_for_current_category` counter, adds current category to list of
+        `exhausted_categories`, and randomly picks a new category
+        """
+        print("RESETTING CATEGORY")
+        self.served_for_current_category = 0
+
+        self.exhausted_categories.add(self.current_category)
+        self.current_category = None
+        self.save()
+
+        remaining_categories = self.exam.categories.filter(
+            item_type=self.currently_serving
+        ).exclude(id__in=self.exhausted_categories.all())
+
+        if remaining_categories.count() == 0:  # exhausted all categories
+            raise OutOfCategories
+
+        random_category = remaining_categories.order_by("?")[0]  # pick a new category
+
+        self.current_category = random_category
+        self.save()
+
     def get_next_item(self, force_next=False):
         """
         If called with `force_next` set to False, returns the current item of current category
@@ -342,6 +397,7 @@ class ExamProgress(models.Model):
                 else self.current_question
             )
 
+        # todo refactor to join the two methods into one and use the type of item as a parameter
         if self.currently_serving == "e":
             item = self.get_next_exercise()
         if self.currently_serving == "q":
@@ -350,8 +406,11 @@ class ExamProgress(models.Model):
         # all items of the current type have been completed already; move onto the next type
         if item is None:
             self.move_to_next_type()
-            item = self.get_next_item(force_next=force_next)
-
+            return self.get_next_item(force_next=force_next)
+        if self.current_category is not None:
+            print(
+                f"CURRENTLY SERVED {self.served_for_current_category} FOR {self.current_category}: SHOULD SERVE {self.current_category.amount - self.served_for_current_category} MORE"
+            )
         return item
 
     def get_next_question(self):
@@ -359,15 +418,27 @@ class ExamProgress(models.Model):
         Sets the current question as completed and returns a random question among the
         remaining ones that the user hasn't completed yet
         """
+        # if this is the first question we're getting or we've gotten as many questions for this
+        # category as we wanted to, move onto next category
+        if (
+            self.current_category is None
+            or self.served_for_current_category == self.current_category.amount
+        ):
+            try:
+                self.move_to_next_category()
+            except OutOfCategories:  # we exhausted all the categories; there are no more questions to return
+                print("OUT OF QUESTION CAT")
+                return None
+
         if self.current_question is not None:
             # mark current question as completed
             self.completed_questions.add(self.current_question)
             self.current_question = None
             self.save()
 
-        available_questions = self.exam.questions.exclude(
-            id__in=self.completed_questions.all()
-        )
+        available_questions = self.exam.questions.filter(
+            category=self.current_category
+        ).exclude(id__in=self.completed_questions.all())
 
         if available_questions.count() == 0:
             # user has completed all questions for this exam
@@ -375,6 +446,7 @@ class ExamProgress(models.Model):
 
         random_question = available_questions.order_by("?")[0]
 
+        self.served_for_current_category += 1
         self.current_question = random_question
         self.save()
         return random_question
@@ -384,15 +456,27 @@ class ExamProgress(models.Model):
         Sets the current exercise as completed and returns a random exercise among the
         remaining ones that the user hasn't completed yet
         """
+        # if this is the first exercise we're getting or we've gotten as many exercises for this
+        # category as we wanted to, move onto next category
+        if (
+            self.current_category is None
+            or self.served_for_current_category == self.current_category.amount
+        ):
+            try:
+                self.move_to_next_category()
+            except OutOfCategories:  # we exhausted all the categories; there are no more exercises to return
+                print("OUT OF EXERCISE CAT")
+                return None
+
         if self.current_exercise is not None:
             # mark current exercise as completed
             self.completed_exercises.add(self.current_exercise)
             self.current_exercise = None
             self.save()
 
-        available_exercises = self.exam.exercises.exclude(
-            id__in=self.completed_exercises.all()
-        )
+        available_exercises = self.exam.exercises.filter(
+            category=self.current_category
+        ).exclude(id__in=self.completed_exercises.all())
 
         if available_exercises.count() == 0:
             # user has completed all exercises for this exam
@@ -400,6 +484,7 @@ class ExamProgress(models.Model):
 
         random_exercise = available_exercises.order_by("?")[0]
 
+        self.served_for_current_category += 1
         self.current_exercise = random_exercise
         self.save()
         return random_exercise
@@ -460,6 +545,8 @@ class Submission(models.Model):
         return self.code
 
     def get_passed_testcases(self):
+        if self.details is None:
+            return 0
         return len([t for t in self.details["tests"] if t["passed"]])
 
     def public_details(self):
@@ -469,7 +556,7 @@ class Submission(models.Model):
         """
 
         if "tests" not in self.details:
-            # this happens if an error occurred during execution of code; in this case, there is no
+            # this happens if an error occurred during execution of the user code; in this case, there is no
             # data about the test cases and the details object contains only info about the error
             return self.details
 

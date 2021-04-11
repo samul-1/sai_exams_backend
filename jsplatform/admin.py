@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     Answer,
+    Category,
     Exam,
     ExamProgress,
     ExamReport,
@@ -21,6 +22,11 @@ class UserAdmin(admin.ModelAdmin):
 
 @admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
     pass
 
 

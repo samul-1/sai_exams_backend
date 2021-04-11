@@ -12,3 +12,11 @@ class InvalidAnswerException(Exception):
 
 class ExamNotOverYet(Exception):
     pass
+
+
+class OutOfCategories(Exception):
+    pass
+
+
+class InvalidCategoryType(Exception):
+    pass
