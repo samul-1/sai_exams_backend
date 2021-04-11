@@ -9,4 +9,10 @@ from django.db import models
 
 
 class User(AbstractUser):
+    COURSES = (
+        ("a", "Corso A"),
+        ("b", "Corso B"),
+        ("c", "Corso C"),
+    )
     is_teacher = models.BooleanField(default=False)
+    course = models.CharField(max_length=1, blank=True, null=True, choices=COURSES)

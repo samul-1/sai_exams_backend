@@ -66,6 +66,7 @@ class ExamReport(models.Model):
     generated_by = models.ForeignKey(
         User, null=True, blank=True, on_delete=models.SET_NULL
     )
+    headers = models.JSONField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
@@ -79,7 +80,33 @@ class ExamReport(models.Model):
         super(ExamReport, self).save(*args, **kwargs)  # create the object
         if creating:
             # populate report
+            self.generate_headers()
             self.populate()
+
+    def generate_headers(self):
+        """
+        Fills in the `headers` field with the appropriate headers for the report
+        """
+        headers = ["email", "corso"]
+
+        exercise_count = self.exam.exercises.count()
+        question_count = self.exam.questions.count()
+
+        for i in range(1, exercise_count):
+            headers.append(f"Esercizio { i } testo")
+            headers.append(f"Esercizio { i } sottomissione")
+            headers.append(f"Esercizio { i } orario consegna")
+            headers.append(f"Esercizio { i } testcase superati")
+            headers.append(f"Esercizio { i } testcase falliti")
+
+        for i in range(1, question_count):
+            headers.append(f"Domanda { i } testo")
+            headers.append(f"Domanda { i } risposta data")
+            headers.append(f"Domanda { i } orario risposta")
+            headers.append(f"Domanda { i } risposta corretta")
+
+        self.headers = headers
+        self.save()
 
     def populate(self):
         """
@@ -101,40 +128,74 @@ class ExamReport(models.Model):
 
             participant_details = {
                 "email": participant.email,
-                "submissions": [],  # data about exercise submission
-                "answers": [],  # data about question answers
             }
 
             # get submission data for this participant for each exercise in the exam
+            exerciseCount = 1
             for exercise in exercises:
-                exercise_details = {"exercise": exercise.pk}  # exercise.text
+                exercise_details = {f"Esercizio { exerciseCount } testo": exercise.text}
                 try:
                     submission = exercise.submissions.get(
                         user=participant, has_been_turned_in=True
                     )
-                    exercise_details["code"] = submission.code
                     exercise_details[
-                        "passed_testcases"
+                        f"Esercizio { exerciseCount } sottomissione"
+                    ] = submission.code
+                    exercise_details[
+                        f"Esercizio {exerciseCount} orario consegna"
+                    ] = str(submission.timestamp)
+                    exercise_details[
+                        f"Esercizio {exerciseCount} testcase superari"
                     ] = submission.get_passed_testcases()
+                    exercise_details[f"Esercizio {exerciseCount} testcase falliti"] = (
+                        exercise.testcases.count() - submission.get_passed_testcases()
+                    )
                 except Submission.DoesNotExist:  # no submission was turned in
-                    exercise_details["code"] = None
-
-                participant_details["submissions"].append(exercise_details)
+                    exercise_details[
+                        f"Esercizio { exerciseCount } sottomissione"
+                    ] = None
+                    exercise_details[
+                        f"Esercizio {exerciseCount} orario consegna"
+                    ] = None
+                    exercise_details[f"Esercizio {exerciseCount} testcase superari"] = 0
+                    exercise_details[
+                        f"Esercizio {exerciseCount} testcase falliti"
+                    ] = exercise.testcases.count()
+                participant_details.update(exercise_details)
+                exerciseCount += 1
 
             # get submission data for this participant for each question in the exam
+            questionCount = 0
             for question in questions:
-                question_details = {"question": question.pk}  # question.text
+                question_details = {
+                    f"Domanda { questionCount } testo": question.text
+                }  # question.text
                 try:
                     given_answer = question.given_answers.get(user=participant)
-                    question_details["given_answer"] = (
-                        given_answer.answer.pk  # given_answer.answer.text
+                    question_details[f"Domanda { questionCount } risposta data"] = (
+                        given_answer.answer.text  # given_answer.answer.text
                         if given_answer.answer is not None
                         else None
                     )
+                    question_details[
+                        f"Domanda { questionCount } orario risposta"
+                    ] = str(given_answer.timestamp)
+                    question_details[f"Domanda { questionCount } risposta corretta"] = (
+                        given_answer.answer.is_right_answer  # given_answer.answer.text
+                        if given_answer.answer is not None
+                        else False
+                    )
                 except GivenAnswer.DoesNotExist:  # no answer was given (not even skip)
-                    question_details["given_answer"] = None
+                    question_details[f"Domanda { questionCount } risposta data"] = None
+                    question_details[
+                        f"Domanda { questionCount } orario risposta"
+                    ] = None  # "null"?
+                    question_details[
+                        f"Domanda { questionCount } risposta corretta"
+                    ] = False
 
-                participant_details["answers"].append(question_details)
+                participant_details.update(question_details)
+                questionCount += 1
 
             details.append(participant_details)
 
