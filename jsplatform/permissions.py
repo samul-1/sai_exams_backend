@@ -12,4 +12,3 @@ class IsTeacherOrReadOnly(BasePermission):
 class TeachersOnly(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_teacher
-

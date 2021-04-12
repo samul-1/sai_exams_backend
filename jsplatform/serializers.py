@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from .models import (
     Answer,
+    Category,
     Exam,
     Exercise,
     GivenAnswer,
@@ -24,6 +25,7 @@ class ExamSerializer(serializers.ModelSerializer):
             self.fields["questions"] = MultipleChoiceQuestionSerializer(
                 many=True, **kwargs
             )
+            self.fields["categories"] = CategorySerializer(many=True, **kwargs)
         else:
             # if requesting user isn't a teacher, show only the exercise/question that's
             # currently assigned to them
@@ -34,18 +36,31 @@ class ExamSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         questions = validated_data.pop("questions")
         exercises = validated_data.pop("exercises")
+        categories = validated_data.pop("categories")
 
         exam = Exam.objects.create(**validated_data)
 
+        # create categories
+        for category in categories:
+            c = CategorySerializer(data=category, context=self.context)
+            c.is_valid(raise_exception=True)
+            c.save(exam=exam)
+
         # create objects for each question and exercise
         for question in questions:
+            # get the category this question referenced in the creation form
+            cat = Category.objects.get(tmp_uuid=question.pop("category_uuid"))
+
             q = MultipleChoiceQuestionSerializer(data=question, context=self.context)
             q.is_valid(raise_exception=True)
-            q.save(exam=exam)
+            q.save(exam=exam, category=cat)
         for exercise in exercises:
+            # get the category this exercise referenced in the creation form
+            cat = Category.objects.get(tmp_uuid=exercise.pop("category_uuid"))
+
             e = ExerciseSerializer(data=exercise, context=self.context)
             e.is_valid(raise_exception=True)
-            e.save(exam=exam)
+            e.save(exam=exam, category=cat)
 
         return exam
 
@@ -145,6 +160,18 @@ class ExamSerializer(serializers.ModelSerializer):
             return None
 
 
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ["id", "name", "tmp_uuid", "item_type", "amount"]
+
+    def __init__(self, *args, **kwargs):
+        super(CategorySerializer, self).__init__(*args, **kwargs)
+        self.fields["tmp_uuid"] = serializers.UUIDField(
+            format="hex_verbose", write_only=True
+        )
+
+
 class TestCaseSerializer(serializers.ModelSerializer):
     """
     A serializer for TestCase model showing its associated assertion and public/secret status
@@ -171,13 +198,22 @@ class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MultipleChoiceQuestion
-        fields = ["id", "text"]
+        fields = [
+            "id",
+            "text",
+            "category",
+        ]
 
     def __init__(self, *args, **kwargs):
         super(MultipleChoiceQuestionSerializer, self).__init__(*args, **kwargs)
         self.fields["answers"] = AnswerSerializer(many=True, **kwargs)
         # ! keep an eye on this
         self.fields["id"] = serializers.IntegerField(required=False)
+
+        # used to temporarily reference a newly created category
+        self.fields["category_uuid"] = serializers.UUIDField(
+            write_only=True, required=False
+        )
 
     def create(self, validated_data):
         answers = validated_data.pop("answers")
@@ -252,8 +288,23 @@ class ExerciseSerializer(serializers.ModelSerializer):
     or public test cases only for the exercise
     """
 
+    class Meta:
+        model = Exercise
+        fields = [
+            "id",
+            "text",
+            "category",
+            "starting_code",
+            "min_passing_testcases",
+        ]
+
     def __init__(self, *args, **kwargs):
         super(ExerciseSerializer, self).__init__(*args, **kwargs)
+
+        # used to temporarily reference a newly created category
+        self.fields["category_uuid"] = serializers.UUIDField(
+            write_only=True, required=False
+        )
 
         if self.context["request"].user.is_teacher:
             self.fields["testcases"] = TestCaseSerializer(many=True)
@@ -264,10 +315,6 @@ class ExerciseSerializer(serializers.ModelSerializer):
             self.fields["public_testcases"] = TestCaseSerializer(
                 many=True, read_only=True
             )
-
-    class Meta:
-        model = Exercise
-        fields = ["id", "text", "starting_code", "min_passing_testcases"]
 
     def create(self, validated_data):
         testcases = validated_data.pop("testcases")

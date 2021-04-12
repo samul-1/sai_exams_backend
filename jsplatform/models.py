@@ -68,6 +68,10 @@ class Category(models.Model):
     # determines whether this category is used for JS exercises or questions
     item_type = models.CharField(max_length=1, choices=EXAM_ITEMS)
 
+    # temporarily stores the uuid provided by the frontend for this category to allow
+    # for referencing during the creation of categories and questions/exercises all at once
+    tmp_uuid = models.UUIDField(verbose_name="frontend_uuid", null=True, blank=True)
+
     def __str__(self):
         return self.name
 
