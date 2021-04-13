@@ -12,6 +12,9 @@ DATABASES = {
     )
 }
 
+MIDDLEWARE = ["whitenoise.middleware.WhiteNoiseMiddleware"] + MIDDLEWARE
+# STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+WHITENOISE_MAX_AGE = 604800 * 2  # 2 weeks
 
 SECRET_KEY = os.environ.get("SECRET_KEY", None)
 

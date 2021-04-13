@@ -24,6 +24,7 @@ gunicorn = "*"
 dj-database-url = "*"
 psycopg2-binary = "*"
 psycopg2 = "*"
+whitenoise = "*"
 
 [dev-packages]
 
