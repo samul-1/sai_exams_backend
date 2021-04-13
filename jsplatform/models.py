@@ -220,7 +220,11 @@ class MultipleChoiceQuestion(models.Model):
 
     text = models.TextField()
     category = models.ForeignKey(
-        Category, on_delete=models.SET_NULL, null=True, related_name="questions"
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="questions",
     )
     exam = models.ForeignKey(
         Exam, null=True, on_delete=models.SET_NULL, related_name="questions"
@@ -232,7 +236,7 @@ class MultipleChoiceQuestion(models.Model):
         return self.text
 
     def save(self, *args, **kwargs):
-        if self.category.item_type != "q":
+        if self.category is not None and self.category.item_type != "q":
             raise InvalidCategoryType
         super(MultipleChoiceQuestion, self).save(*args, **kwargs)
 
@@ -246,7 +250,11 @@ class Exercise(models.Model):
         Exam, null=True, on_delete=models.SET_NULL, related_name="exercises"
     )
     category = models.ForeignKey(
-        Category, on_delete=models.SET_NULL, null=True, related_name="exercises"
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exercises",
     )
     text = models.TextField()
     starting_code = models.TextField(blank=True)
@@ -261,7 +269,7 @@ class Exercise(models.Model):
         return self.text
 
     def save(self, *args, **kwargs):
-        if self.category.item_type != "e":
+        if self.category is not None and self.category.item_type != "e":
             raise InvalidCategoryType
         super(Exercise, self).save(*args, **kwargs)
 
@@ -401,11 +409,7 @@ class ExamProgress(models.Model):
                 else self.current_question
             )
 
-        # todo refactor to join the two methods into one and use the type of item as a parameter
-        if self.currently_serving == "e":
-            item = self.get_next_exercise()
-        if self.currently_serving == "q":
-            item = self.get_next_question()
+        item = self._get_item(type=self.currently_serving)
 
         # all items of the current type have been completed already; move onto the next type
         if item is None:
@@ -417,12 +421,12 @@ class ExamProgress(models.Model):
             )
         return item
 
-    def get_next_question(self):
+    def _get_item(self, type):
         """
-        Sets the current question as completed and returns a random question among the
-        remaining ones that the user hasn't completed yet
+        Sets the current item (question or exercise, as per the parameter `type`) as completed
+        and returns a random one among the remaining ones that the user hasn't completed yet
         """
-        # if this is the first question we're getting or we've gotten as many questions for this
+        # if this is the first item we're getting or we've gotten as many item for this
         # category as we wanted to, move onto next category
         if (
             self.current_category is None
@@ -434,64 +438,37 @@ class ExamProgress(models.Model):
                 print("OUT OF QUESTION CAT")
                 return None
 
-        if self.current_question is not None:
-            # mark current question as completed
-            self.completed_questions.add(self.current_question)
-            self.current_question = None
+        verbose_type = "question" if type == "q" else "exercise"
+        verbose_type_plural = verbose_type + "s"
+
+        current_item_attr = f"current_{verbose_type}"
+        completed_items_attr = f"completed_{verbose_type_plural}"
+        available_items_attr = f"available_{verbose_type_plural}"
+
+        if getattr(self, current_item_attr) is not None:
+            # mark current item as completed
+            getattr(self, completed_items_attr).add(getattr(self, current_item_attr))
+            # reset current item
+            setattr(self, current_item_attr, None)
             self.save()
 
-        available_questions = self.exam.questions.filter(
-            category=self.current_category
-        ).exclude(id__in=self.completed_questions.all())
+        # get remaining items of current category
+        available_items = (
+            getattr(self.exam, verbose_type_plural)
+            .filter(category=self.current_category)
+            .exclude(id__in=getattr(self, completed_items_attr).all())
+        )
 
-        if available_questions.count() == 0:
-            # user has completed all questions for this exam
+        if available_items.count() == 0:
+            # user has completed all items of this type
             return None
 
-        random_question = available_questions.order_by("?")[0]
+        random_item = available_items.order_by("?")[0]
 
         self.served_for_current_category += 1
-        self.current_question = random_question
+        setattr(self, current_item_attr, random_item)
         self.save()
-        return random_question
-
-    def get_next_exercise(self):
-        """
-        Sets the current exercise as completed and returns a random exercise among the
-        remaining ones that the user hasn't completed yet
-        """
-        # if this is the first exercise we're getting or we've gotten as many exercises for this
-        # category as we wanted to, move onto next category
-        if (
-            self.current_category is None
-            or self.served_for_current_category == self.current_category.amount
-        ):
-            try:
-                self.move_to_next_category()
-            except OutOfCategories:  # we exhausted all the categories; there are no more exercises to return
-                print("OUT OF EXERCISE CAT")
-                return None
-
-        if self.current_exercise is not None:
-            # mark current exercise as completed
-            self.completed_exercises.add(self.current_exercise)
-            self.current_exercise = None
-            self.save()
-
-        available_exercises = self.exam.exercises.filter(
-            category=self.current_category
-        ).exclude(id__in=self.completed_exercises.all())
-
-        if available_exercises.count() == 0:
-            # user has completed all exercises for this exam
-            return None
-
-        random_exercise = available_exercises.order_by("?")[0]
-
-        self.served_for_current_category += 1
-        self.current_exercise = random_exercise
-        self.save()
-        return random_exercise
+        return random_item
 
 
 class TestCase(models.Model):

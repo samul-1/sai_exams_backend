@@ -84,7 +84,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     queryset = Exam.objects.all()
     # only allow teachers to access exams' data
     permission_classes = [TeachersOnly]
-    renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
+    # renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
 
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def my_exam(self, request, **kwargs):
