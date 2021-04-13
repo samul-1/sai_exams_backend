@@ -374,9 +374,11 @@ class ExamProgress(models.Model):
         print("RESETTING CATEGORY")
         self.served_for_current_category = 0
 
-        self.exhausted_categories.add(self.current_category)
+        if self.current_category is not None:
+            self.exhausted_categories.add(self.current_category)
         self.current_category = None
         self.save()
+        print("CATEGORY SUCCESSFULLY RESET")
 
         remaining_categories = self.exam.categories.filter(
             item_type=self.currently_serving
@@ -434,6 +436,7 @@ class ExamProgress(models.Model):
         ):
             try:
                 self.move_to_next_category()
+                print("SUCCESSFULLY MOVED TO NEXT CAT")
             except OutOfCategories:  # we exhausted all the categories; there are no more questions to return
                 print("OUT OF QUESTION CAT")
                 return None
