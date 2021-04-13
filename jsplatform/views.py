@@ -84,7 +84,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     queryset = Exam.objects.all()
     # only allow teachers to access exams' data
     permission_classes = [TeachersOnly]
-    # renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
+    renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
 
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def my_exam(self, request, **kwargs):
@@ -113,7 +113,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         # this will either create a new ExamProgress object and get a random item for
         # the user if this is the first visit, or will return the currently active
         # item (question or coding exercise) if it's not
-        item = exam.get_item_for(request.user, force_next=True)  # force_next=True
+        item = exam.get_item_for(request.user, force_next=False)  # force_next=True
 
         # there are no more exercises to show the user; send special http code for frontend to handle this
         if item is None:
