@@ -113,18 +113,18 @@ class ExamReport(models.Model):
         exercise_count = self.exam.exercises.count()
         question_count = self.exam.questions.count()
 
-        for i in range(1, exercise_count):
-            headers.append(f"Esercizio { i } testo")
-            headers.append(f"Esercizio { i } sottomissione")
-            headers.append(f"Esercizio { i } orario consegna")
-            headers.append(f"Esercizio { i } testcase superati")
-            headers.append(f"Esercizio { i } testcase falliti")
+        for i in range(0, exercise_count):
+            headers.append(f"Esercizio { i+1 } testo")
+            headers.append(f"Esercizio { i+1 } sottomissione")
+            headers.append(f"Esercizio { i+1 } orario consegna")
+            headers.append(f"Esercizio { i+1 } testcase superati")
+            headers.append(f"Esercizio { i+1 } testcase falliti")
 
-        for i in range(1, question_count):
-            headers.append(f"Domanda { i } testo")
-            headers.append(f"Domanda { i } risposta data")
-            headers.append(f"Domanda { i } orario risposta")
-            headers.append(f"Domanda { i } risposta corretta")
+        for i in range(0, question_count):
+            headers.append(f"Domanda { i+1 } testo")
+            headers.append(f"Domanda { i+1 } risposta data")
+            headers.append(f"Domanda { i+1 } orario risposta")
+            headers.append(f"Domanda { i+1 } risposta corretta")
 
         self.headers = headers
         self.save()
