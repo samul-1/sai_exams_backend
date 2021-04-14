@@ -1,3 +1,4 @@
+from django.forms.models import model_to_dict
 from rest_framework import serializers
 
 from .models import (
@@ -66,34 +67,92 @@ class ExamSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # get data about exercises and questions
+        print("VALIDATED DATA")
+        print(validated_data)
         questions_data = validated_data.pop("questions")
         exercises_data = validated_data.pop("exercises")
+        categories_data = validated_data.pop("categories")
+        print("validated data now is")
+        print(validated_data)
 
         # update Exam instance
         instance = super(ExamSerializer, self).update(instance, validated_data)
 
+        print("UPDATED MAIN SERIALIZER")
         questions = instance.questions.all()
         exercises = instance.exercises.all()
+        categories = instance.categories.all()
+
+        # update each category
+        for category_data in categories_data:
+            print("CATEGORY DATA")
+            print(category_data)
+            if category_data.get("id") is not None:
+                category = Category.objects.get(pk=category_data["id"])
+                save_id = category_data.pop("id")
+            else:
+                print("creating category")
+                category = Category(exam=instance)
+                category.save()
+                save_id = category.pk
+
+            serializer = CategorySerializer(
+                category, data=category_data, context=self.context
+            )
+            serializer.is_valid(raise_exception=True)
+
+            # update category
+            serializer.update(instance=category, validated_data=category_data)
+
+            # remove category from the list of those still to process
+            categories = categories.exclude(pk=save_id)
+
+        # # remove any questions for which data wasn't sent (i.e. user deleted them)
+        for category in categories:
+            category.delete()
 
         # update each question
         for question_data in questions_data:
+            print("QUESTION DATA")
+            print(question_data)
             if question_data.get("id") is not None:  # try:
                 question = MultipleChoiceQuestion.objects.get(pk=question_data["id"])
+                print("SAVING")
                 save_id = question_data.pop("id")  # question_data["id"]
+                print("SAVED")
             else:  # except MultipleChoiceQuestion.DoesNotExist:
                 question = MultipleChoiceQuestion(exam=instance)
                 question.save()
                 save_id = question.pk
 
             # del question_data["id"]  # get rid of frontend generated id
+            print("INITIALIZING SERIALIZER")
+            print(question_data)
 
             serializer = MultipleChoiceQuestionSerializer(
                 question, data=question_data, context=self.context
             )
+            print("VALIDATING SERIALIZER")
+
+            # pop question category as it's not handled by the serializer
+            question_category = question_data.pop("category", None)
+
+            # question belongs to a new category we just created
+            if question_category is None:
+                question_category = Category.objects.get(
+                    tmp_uuid=question_data["category_uuid"]
+                )
+
             serializer.is_valid(raise_exception=True)
 
             # update question
-            serializer.update(instance=question, validated_data=question_data)
+            updated_question = serializer.update(
+                instance=question, validated_data=question_data
+            )
+            print("VALIDATED SERIALIZER")
+            # update question category
+            updated_question.category = question_category
+            updated_question.save()
 
             # remove question from the list of those still to process
             questions = questions.exclude(pk=save_id)
@@ -112,15 +171,28 @@ class ExamSerializer(serializers.ModelSerializer):
                 exercise.save()
                 save_id = exercise.pk
 
-            # del exercise_data["id"]  # get rid of frontend generated id
-
             serializer = ExerciseSerializer(
                 exercise, data=exercise_data, context=self.context
             )
+
+            # pop exercise category as it's not handled by the serializer
+            exercise_category = exercise_data.pop("category", None)
+
+            # exercise belongs to a new category we just created
+            if exercise_category is None:
+                exercise_category = Category.objects.get(
+                    tmp_uuid=exercise_data["category_uuid"]
+                )
+
             serializer.is_valid(raise_exception=True)
 
             # update exercise
-            serializer.update(instance=exercise, validated_data=exercise_data)
+            updated_exercise = serializer.update(
+                instance=exercise, validated_data=exercise_data
+            )
+            # update exercise category
+            updated_exercise.category = exercise_category
+            updated_exercise.save()
 
             # remove exercise from the list of those still to process
             exercises = exercises.exclude(pk=save_id)
@@ -167,8 +239,9 @@ class CategorySerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super(CategorySerializer, self).__init__(*args, **kwargs)
+        self.fields["id"] = serializers.IntegerField(required=False)
         self.fields["tmp_uuid"] = serializers.UUIDField(
-            format="hex_verbose", write_only=True
+            format="hex_verbose", write_only=True, required=False
         )
 
 
@@ -201,12 +274,14 @@ class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "text",
-            "category",
         ]
 
     def __init__(self, *args, **kwargs):
         super(MultipleChoiceQuestionSerializer, self).__init__(*args, **kwargs)
         self.fields["answers"] = AnswerSerializer(many=True, **kwargs)
+        self.fields["category"] = serializers.PrimaryKeyRelatedField(
+            queryset=Category.objects.all(), required=False
+        )
         # ! keep an eye on this
         self.fields["id"] = serializers.IntegerField(required=False)
 
@@ -227,9 +302,10 @@ class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
         return question
 
     def update(self, instance, validated_data):
+        print("question data is")
+        print(validated_data)
         # get data about answers
         answers_data = validated_data.pop("answers")
-
         # update question instance
         instance = super(MultipleChoiceQuestionSerializer, self).update(
             instance, validated_data
@@ -293,7 +369,6 @@ class ExerciseSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "text",
-            "category",
             "starting_code",
             "min_passing_testcases",
         ]
@@ -304,6 +379,10 @@ class ExerciseSerializer(serializers.ModelSerializer):
         # used to temporarily reference a newly created category
         self.fields["category_uuid"] = serializers.UUIDField(
             write_only=True, required=False
+        )
+
+        self.fields["category"] = serializers.PrimaryKeyRelatedField(
+            queryset=Category.objects.all(), required=False
         )
 
         if self.context["request"].user.is_teacher:
