@@ -16,3 +16,10 @@ class User(AbstractUser):
     )
     is_teacher = models.BooleanField(default=False)
     course = models.CharField(max_length=1, blank=True, null=True, choices=COURSES)
+
+    def save(self, *args, **kwargs):
+        creating = not self.pk  # see if the objects exists already or is being created
+        super(User, self).save(*args, **kwargs)  # create the object
+        if creating and self.email.split("@")[1] == "unipi.it":
+            self.is_teacher = True
+            self.save()
