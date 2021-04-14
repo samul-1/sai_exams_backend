@@ -179,7 +179,7 @@ class ExamReport(models.Model):
                 exerciseCount += 1
 
             # get submission data for this participant for each question in the exam
-            questionCount = 0
+            questionCount = 1
             for question in questions:
                 question_details = {
                     f"Domanda { questionCount } testo": question.text
