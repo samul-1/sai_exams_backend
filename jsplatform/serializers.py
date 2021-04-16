@@ -1,3 +1,6 @@
+import sys
+
+from django.apps import apps
 from django.forms.models import model_to_dict
 from rest_framework import serializers
 

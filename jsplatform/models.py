@@ -29,6 +29,10 @@ class Exam(models.Model):
     name = models.TextField()
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
+    draft = models.BooleanField(default=True)
+    locked_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL
+    )
     begin_timestamp = models.DateTimeField()
     end_timestamp = models.DateTimeField()
 
@@ -108,21 +112,23 @@ class ExamReport(models.Model):
         """
         Fills in the `headers` field with the appropriate headers for the report
         """
-        headers = ["email", "corso"]
+        headers = ["Email", "Corso"]
 
         exercise_count = self.exam.exercises.count()
         question_count = self.exam.questions.count()
 
         for i in range(0, exercise_count):
-            headers.append(f"Esercizio { i+1 } testo")
-            headers.append(f"Esercizio { i+1 } sottomissione")
-            headers.append(f"Esercizio { i+1 } orario consegna")
-            headers.append(f"Esercizio { i+1 } testcase superati")
-            headers.append(f"Esercizio { i+1 } testcase falliti")
+            headers.append(f"Esercizio JS { i+1 } testo")
+            headers.append(f"Esercizio JS { i+1 } sottomissione")
+            headers.append(f"Esercizio JS { i+1 } orario visualizzazione")
+            headers.append(f"Esercizio JS { i+1 } orario consegna")
+            headers.append(f"Esercizio JS { i+1 } testcase superati")
+            headers.append(f"Esercizio JS { i+1 } testcase falliti")
 
         for i in range(0, question_count):
             headers.append(f"Domanda { i+1 } testo")
             headers.append(f"Domanda { i+1 } risposta data")
+            headers.append(f"Domanda { i+1 } orario visualizzazione")
             headers.append(f"Domanda { i+1 } orario risposta")
             headers.append(f"Domanda { i+1 } risposta corretta")
 
@@ -155,7 +161,9 @@ class ExamReport(models.Model):
             # get submission data for this participant for each exercise in the exam
             exerciseCount = 1
             for exercise in exercises:
-                exercise_details = {f"Esercizio { exerciseCount } testo": exercise.text}
+                exercise_details = {
+                    f"Esercizio JS { exerciseCount } testo": exercise.text
+                }
                 try:
                     submission = exercise.submissions.get(
                         user=participant, has_been_turned_in=True
@@ -164,15 +172,18 @@ class ExamReport(models.Model):
                     submission = Submission()  # dummy submission
 
                 exercise_details[
-                    f"Esercizio { exerciseCount } sottomissione"
+                    f"Esercizio JS { exerciseCount } sottomissione"
                 ] = submission.code
-                exercise_details[f"Esercizio {exerciseCount} orario consegna"] = str(
+                exercise_details[
+                    f"Esercizio JS {exerciseCount} orario visualizzazione"
+                ] = "-"
+                exercise_details[f"Esercizio JS {exerciseCount} orario consegna"] = str(
                     submission.timestamp
                 )
                 exercise_details[
-                    f"Esercizio {exerciseCount} testcase superati"
+                    f"Esercizio JS {exerciseCount} testcase superati"
                 ] = submission.get_passed_testcases()
-                exercise_details[f"Esercizio {exerciseCount} testcase falliti"] = (
+                exercise_details[f"Esercizio JS {exerciseCount} testcase falliti"] = (
                     exercise.testcases.count() - submission.get_passed_testcases()
                 )
                 participant_details.update(exercise_details)
@@ -195,6 +206,9 @@ class ExamReport(models.Model):
                     if given_answer.answer is not None
                     else None
                 )
+                question_details[
+                    f"Domanda { questionCount } orario visualizzazione"
+                ] = "-"
                 question_details[f"Domanda { questionCount } orario risposta"] = str(
                     given_answer.timestamp
                 )
