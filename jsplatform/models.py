@@ -232,6 +232,8 @@ class MultipleChoiceQuestion(models.Model):
     A multiple choice question shown in exams
     """
 
+    # todo soon to be changed to Question model
+
     text = models.TextField()
     category = models.ForeignKey(
         Category,
