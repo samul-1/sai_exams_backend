@@ -10,9 +10,14 @@ from django.db.models import JSONField
 from django.utils import timezone
 from users.models import User
 
-from .exceptions import (ExamNotOverYet, InvalidAnswerException,
-                         InvalidCategoryType, NotEligibleForTurningIn,
-                         OutOfCategories, SubmissionAlreadyTurnedIn)
+from .exceptions import (
+    ExamNotOverYet,
+    InvalidAnswerException,
+    InvalidCategoryType,
+    NotEligibleForTurningIn,
+    OutOfCategories,
+    SubmissionAlreadyTurnedIn,
+)
 from .utils import run_code_in_vm
 
 
@@ -197,9 +202,13 @@ class ExamReport(models.Model):
                     given_answer = GivenAnswer(answer=None)  # dummy answer
 
                 question_details[f"Domanda { questionCount } risposta data"] = (
-                    given_answer.answer.text  # given_answer.answer.text
-                    if given_answer.answer is not None
-                    else None
+                    given_answer.text
+                    if given_answer.question.question_type == "o"
+                    else (
+                        given_answer.answer.text
+                        if given_answer.answer is not None
+                        else None
+                    )
                 )
                 question_details[
                     f"Domanda { questionCount } orario visualizzazione"
@@ -207,11 +216,12 @@ class ExamReport(models.Model):
                 question_details[f"Domanda { questionCount } orario risposta"] = str(
                     given_answer.timestamp
                 )
-                question_details[f"Domanda { questionCount } risposta corretta"] = (
-                    given_answer.answer.is_right_answer  # given_answer.answer.text
-                    if given_answer.answer is not None
-                    else False
-                )
+                if given_answer.question.question_type == "m":
+                    question_details[f"Domanda { questionCount } risposta corretta"] = (
+                        given_answer.answer.is_right_answer  # given_answer.answer.text
+                        if given_answer.answer is not None
+                        else False
+                    )
 
                 participant_details.update(question_details)
                 questionCount += 1
@@ -224,10 +234,13 @@ class ExamReport(models.Model):
 
 class Question(models.Model):
     """
-    A multiple choice question shown in exams
+    A question shown in exams
     """
 
-    # todo soon to be changed to Question model
+    QUESTION_TYPES = (
+        ("o", "OPEN QUESTION"),
+        ("m", "MULTIPLE CHOICE QUESTION"),
+    )
 
     text = models.TextField()
     category = models.ForeignKey(
@@ -240,6 +253,7 @@ class Question(models.Model):
     exam = models.ForeignKey(
         Exam, null=True, on_delete=models.SET_NULL, related_name="questions"
     )
+    question_type = models.CharField(default="m", choices=QUESTION_TYPES, max_length=1)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
 
@@ -646,14 +660,19 @@ class Answer(models.Model):
 
 class GivenAnswer(models.Model):
     """
-    An answer to a multiple choice question given by a user during an exam
+    An answer to a question given by a user during an exam
     """
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     question = models.ForeignKey(
         Question, on_delete=models.CASCADE, related_name="given_answers"
     )
+
+    # used if the referenced question is a multiple-choice one
     answer = models.ForeignKey(Answer, null=True, blank=True, on_delete=models.CASCADE)
+
+    # used if the referenced question is an open-ended one
+    text = models.TextField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

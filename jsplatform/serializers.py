@@ -275,6 +275,7 @@ class QuestionSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "text",
+            "question_type",
         ]
 
     def __init__(self, *args, **kwargs):
@@ -448,7 +449,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
 class GivenAnswerSerializer(serializers.ModelSerializer):
     class Meta:
         model = GivenAnswer
-        fields = ["id", "user", "answer", "timestamp"]
+        fields = ["id", "user", "answer", "text", "timestamp"]
         read_only_fields = ["user", "timestamp"]
 
 

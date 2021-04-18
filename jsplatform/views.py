@@ -12,13 +12,27 @@ from rest_framework.views import APIView
 
 from . import filters, throttles
 from .exceptions import InvalidAnswerException, NotEligibleForTurningIn
-from .models import (Exam, ExamProgress, ExamReport, Exercise, GivenAnswer,
-                     Question, Submission, TestCase, User)
+from .models import (
+    Exam,
+    ExamProgress,
+    ExamReport,
+    Exercise,
+    GivenAnswer,
+    Question,
+    Submission,
+    TestCase,
+    User,
+)
 from .permissions import IsTeacherOrReadOnly, TeachersOnly
 from .renderers import ReportRenderer
-from .serializers import (ExamSerializer, ExerciseSerializer,
-                          GivenAnswerSerializer, QuestionSerializer,
-                          SubmissionSerializer, TestCaseSerializer)
+from .serializers import (
+    ExamSerializer,
+    ExerciseSerializer,
+    GivenAnswerSerializer,
+    QuestionSerializer,
+    SubmissionSerializer,
+    TestCaseSerializer,
+)
 
 
 class QuestionViewSet(viewsets.ModelViewSet):
