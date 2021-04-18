@@ -10,14 +10,9 @@ from django.db.models import JSONField
 from django.utils import timezone
 from users.models import User
 
-from .exceptions import (
-    ExamNotOverYet,
-    InvalidAnswerException,
-    InvalidCategoryType,
-    NotEligibleForTurningIn,
-    OutOfCategories,
-    SubmissionAlreadyTurnedIn,
-)
+from .exceptions import (ExamNotOverYet, InvalidAnswerException,
+                         InvalidCategoryType, NotEligibleForTurningIn,
+                         OutOfCategories, SubmissionAlreadyTurnedIn)
 from .utils import run_code_in_vm
 
 
@@ -227,7 +222,7 @@ class ExamReport(models.Model):
         self.save()
 
 
-class MultipleChoiceQuestion(models.Model):
+class Question(models.Model):
     """
     A multiple choice question shown in exams
     """
@@ -254,7 +249,7 @@ class MultipleChoiceQuestion(models.Model):
     def save(self, *args, **kwargs):
         if self.category is not None and self.category.item_type != "q":
             raise InvalidCategoryType
-        super(MultipleChoiceQuestion, self).save(*args, **kwargs)
+        super(Question, self).save(*args, **kwargs)
 
 
 class Exercise(models.Model):
@@ -349,7 +344,7 @@ class ExamProgress(models.Model):
     )
 
     current_question = models.ForeignKey(
-        MultipleChoiceQuestion,
+        Question,
         related_name="question_current_in_exams",
         null=True,
         default=None,
@@ -358,7 +353,7 @@ class ExamProgress(models.Model):
     )
 
     completed_questions = models.ManyToManyField(
-        MultipleChoiceQuestion,
+        Question,
         related_name="question_completed_in_exams",
         blank=True,
     )
@@ -637,7 +632,7 @@ class Answer(models.Model):
     """
 
     question = models.ForeignKey(
-        MultipleChoiceQuestion, on_delete=models.CASCADE, related_name="answers"
+        Question, on_delete=models.CASCADE, related_name="answers"
     )
     text = models.TextField()
     is_right_answer = models.BooleanField(default=False)
@@ -656,7 +651,7 @@ class GivenAnswer(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     question = models.ForeignKey(
-        MultipleChoiceQuestion, on_delete=models.CASCADE, related_name="given_answers"
+        Question, on_delete=models.CASCADE, related_name="given_answers"
     )
     answer = models.ForeignKey(Answer, null=True, blank=True, on_delete=models.CASCADE)
     timestamp = models.DateTimeField(auto_now_add=True)

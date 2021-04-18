@@ -10,7 +10,7 @@ from .models import (
     Exam,
     Exercise,
     GivenAnswer,
-    MultipleChoiceQuestion,
+    Question,
     Submission,
     TestCase,
 )
@@ -26,9 +26,7 @@ class ExamSerializer(serializers.ModelSerializer):
         if self.context["request"].user.is_teacher:
             # if requesting user is a teacher, show all exercises and questions for this exam
             self.fields["exercises"] = ExerciseSerializer(many=True, **kwargs)
-            self.fields["questions"] = MultipleChoiceQuestionSerializer(
-                many=True, **kwargs
-            )
+            self.fields["questions"] = QuestionSerializer(many=True, **kwargs)
             self.fields["categories"] = CategorySerializer(many=True, **kwargs)
         else:
             # if requesting user isn't a teacher, show only the exercise/question that's
@@ -55,7 +53,7 @@ class ExamSerializer(serializers.ModelSerializer):
             # get the category this question referenced in the creation form
             cat = Category.objects.get(tmp_uuid=question.pop("category_uuid"))
 
-            q = MultipleChoiceQuestionSerializer(data=question, context=self.context)
+            q = QuestionSerializer(data=question, context=self.context)
             q.is_valid(raise_exception=True)
             q.save(exam=exam, category=cat)
         for exercise in exercises:
@@ -119,12 +117,12 @@ class ExamSerializer(serializers.ModelSerializer):
             print("QUESTION DATA")
             print(question_data)
             if question_data.get("id") is not None:  # try:
-                question = MultipleChoiceQuestion.objects.get(pk=question_data["id"])
+                question = Question.objects.get(pk=question_data["id"])
                 print("SAVING")
                 save_id = question_data.pop("id")  # question_data["id"]
                 print("SAVED")
-            else:  # except MultipleChoiceQuestion.DoesNotExist:
-                question = MultipleChoiceQuestion(exam=instance)
+            else:  # except Question.DoesNotExist:
+                question = Question(exam=instance)
                 question.save()
                 save_id = question.pk
 
@@ -132,7 +130,7 @@ class ExamSerializer(serializers.ModelSerializer):
             print("INITIALIZING SERIALIZER")
             print(question_data)
 
-            serializer = MultipleChoiceQuestionSerializer(
+            serializer = QuestionSerializer(
                 question, data=question_data, context=self.context
             )
             print("VALIDATING SERIALIZER")
@@ -217,7 +215,7 @@ class ExamSerializer(serializers.ModelSerializer):
 
     def get_question(self, obj):
         try:
-            return MultipleChoiceQuestionSerializer(
+            return QuestionSerializer(
                 instance=self.context["question"],
                 context={"request": self.context["request"]},
             ).data
@@ -267,20 +265,20 @@ class TestCaseSerializer(serializers.ModelSerializer):
         return instance
 
 
-class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
+class QuestionSerializer(serializers.ModelSerializer):
     """
     A serializer for a multiple choice question, showing its text and answers
     """
 
     class Meta:
-        model = MultipleChoiceQuestion
+        model = Question
         fields = [
             "id",
             "text",
         ]
 
     def __init__(self, *args, **kwargs):
-        super(MultipleChoiceQuestionSerializer, self).__init__(*args, **kwargs)
+        super(QuestionSerializer, self).__init__(*args, **kwargs)
         self.fields["answers"] = AnswerSerializer(many=True, **kwargs)
         self.fields["category"] = serializers.PrimaryKeyRelatedField(
             queryset=Category.objects.all(), required=False
@@ -296,7 +294,7 @@ class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         answers = validated_data.pop("answers")
 
-        question = MultipleChoiceQuestion.objects.create(**validated_data)
+        question = Question.objects.create(**validated_data)
 
         # create objects for each answer
         for answer in answers:
@@ -310,9 +308,7 @@ class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
         # get data about answers
         answers_data = validated_data.pop("answers")
         # update question instance
-        instance = super(MultipleChoiceQuestionSerializer, self).update(
-            instance, validated_data
-        )
+        instance = super(QuestionSerializer, self).update(instance, validated_data)
 
         answers = instance.answers.all()
 

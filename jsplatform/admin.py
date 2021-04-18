@@ -8,7 +8,7 @@ from .models import (
     ExamReport,
     Exercise,
     GivenAnswer,
-    MultipleChoiceQuestion,
+    Question,
     Submission,
     TestCase,
     User,
@@ -50,8 +50,8 @@ class SubmissionAdmin(admin.ModelAdmin):
     pass
 
 
-@admin.register(MultipleChoiceQuestion)
-class MultipleChoiceQuestionAdmin(admin.ModelAdmin):
+@admin.register(Question)
+class QuestionAdmin(admin.ModelAdmin):
     pass
 
 

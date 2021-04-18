@@ -7,7 +7,7 @@ from . import views
 router = routers.SimpleRouter()
 router.register(r"exercises", views.ExerciseViewSet)
 router.register(r"exams", views.ExamViewSet)
-router.register(r"questions", views.MultipleChoiceQuestionViewSet)
+router.register(r"questions", views.QuestionViewSet)
 
 exercise_router = routers.NestedSimpleRouter(router, r"exercises", lookup="exercise")
 question_router = routers.NestedSimpleRouter(router, r"questions", lookup="question")

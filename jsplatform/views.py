@@ -12,30 +12,16 @@ from rest_framework.views import APIView
 
 from . import filters, throttles
 from .exceptions import InvalidAnswerException, NotEligibleForTurningIn
-from .models import (
-    Exam,
-    ExamProgress,
-    ExamReport,
-    Exercise,
-    GivenAnswer,
-    MultipleChoiceQuestion,
-    Submission,
-    TestCase,
-    User,
-)
+from .models import (Exam, ExamProgress, ExamReport, Exercise, GivenAnswer,
+                     Question, Submission, TestCase, User)
 from .permissions import IsTeacherOrReadOnly, TeachersOnly
 from .renderers import ReportRenderer
-from .serializers import (
-    ExamSerializer,
-    ExerciseSerializer,
-    GivenAnswerSerializer,
-    MultipleChoiceQuestionSerializer,
-    SubmissionSerializer,
-    TestCaseSerializer,
-)
+from .serializers import (ExamSerializer, ExerciseSerializer,
+                          GivenAnswerSerializer, QuestionSerializer,
+                          SubmissionSerializer, TestCaseSerializer)
 
 
-class MultipleChoiceQuestionViewSet(viewsets.ModelViewSet):
+class QuestionViewSet(viewsets.ModelViewSet):
     """
     A viewset for viewing, creating, and editing multiple choice questions
 
@@ -44,8 +30,8 @@ class MultipleChoiceQuestionViewSet(viewsets.ModelViewSet):
     Regular users can only view questions they're currently assigned
     """
 
-    serializer_class = MultipleChoiceQuestionSerializer
-    queryset = MultipleChoiceQuestion.objects.all()
+    serializer_class = QuestionSerializer
+    queryset = Question.objects.all()
 
     def get_queryset(self):
         """
@@ -62,7 +48,7 @@ class MultipleChoiceQuestionViewSet(viewsets.ModelViewSet):
         )
 
         # get default queryset
-        queryset = super(MultipleChoiceQuestionViewSet, self).get_queryset()
+        queryset = super(QuestionViewSet, self).get_queryset()
 
         # get questions that appear as `current_question` in one of the ExamProgress object
         queryset = queryset.filter(
@@ -202,7 +188,7 @@ class GivenAnswerViewSet(viewsets.ModelViewSet):
     # def dispatch(self, request, *args, **kwargs):
     #     # this method prevents users from accessing `questions/id/given_answers` for questions
     #     # they don't have permission to see
-    #     parent_view = MultipleChoiceQuestionViewSet.as_view({"get": "retrieve"})
+    #     parent_view = QuestionViewSet.as_view({"get": "retrieve"})
     #     original_method = request.method
 
     #     # get the corresponding question
@@ -225,7 +211,7 @@ class GivenAnswerViewSet(viewsets.ModelViewSet):
 
         # filter given answers for given question
         if question_id is not None:
-            question = get_object_or_404(MultipleChoiceQuestion, pk=question_id)
+            question = get_object_or_404(Question, pk=question_id)
             queryset = queryset.filter(question=question)
 
         # filter given answers for given user
@@ -244,7 +230,7 @@ class GivenAnswerViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         question_id = self.kwargs["question_pk"]
 
-        question = get_object_or_404(MultipleChoiceQuestion, pk=question_id)
+        question = get_object_or_404(Question, pk=question_id)
 
         serializer.save(question=question, user=self.request.user)
 
