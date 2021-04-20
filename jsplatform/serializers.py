@@ -19,7 +19,7 @@ from .models import (
 class ExamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exam
-        fields = ["id", "name", "begin_timestamp", "end_timestamp"]
+        fields = ["id", "name", "draft", "begin_timestamp", "end_timestamp"]
 
     def __init__(self, *args, **kwargs):
         super(ExamSerializer, self).__init__(*args, **kwargs)
@@ -236,7 +236,15 @@ class ExamSerializer(serializers.ModelSerializer):
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ["id", "name", "tmp_uuid", "item_type", "amount"]
+        fields = [
+            "id",
+            "name",
+            "tmp_uuid",
+            "item_type",
+            "amount",
+            "is_aggregated_question",
+            "introduction_text",
+        ]
 
     def __init__(self, *args, **kwargs):
         super(CategorySerializer, self).__init__(*args, **kwargs)
@@ -286,7 +294,7 @@ class QuestionSerializer(serializers.ModelSerializer):
         )
         # ! keep an eye on this
         self.fields["id"] = serializers.IntegerField(required=False)
-
+        self.fields["introduction"] = serializers.SerializerMethodField()
         # used to temporarily reference a newly created category
         self.fields["category_uuid"] = serializers.UUIDField(
             write_only=True, required=False
@@ -343,6 +351,11 @@ class QuestionSerializer(serializers.ModelSerializer):
             answer.delete()
 
         return instance
+
+    def get_introduction(self, obj):
+        print("CATEGORY -----------------")
+        print(obj.category)
+        return obj.category.introduction_text
 
 
 class AnswerSerializer(serializers.ModelSerializer):

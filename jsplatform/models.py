@@ -68,9 +68,20 @@ class Category(models.Model):
         Exam, null=True, on_delete=models.SET_NULL, related_name="categories"
     )
     name = models.TextField()
+
+    # holds the number of questions belonging to this category that appear in each exam
     amount = models.PositiveIntegerField(default=1)
+
     # determines whether this category is used for JS exercises or questions
     item_type = models.CharField(max_length=1, choices=EXAM_ITEMS)
+
+    # determines whether this category is logically seen as a set of related questions
+    # that appear together in an exam
+    is_aggregated_question = models.BooleanField(default=False)
+
+    # if the category is an aggregated question, this field holds the introductory text
+    # that is shown together with the questions that make up this category
+    introduction_text = models.TextField(blank=True, null=True)
 
     # temporarily stores the uuid provided by the frontend for this category to allow
     # for referencing during the creation of categories and questions/exercises all at once
@@ -376,19 +387,22 @@ class ExamProgress(models.Model):
         """
         Updates the type of items that are currently being served to this user
         """
-        # ! by all means refactor
-        if self.currently_serving == "c":
+        if self.currently_serving == "c":  # all done
             return
 
-        if self.currently_serving == "q":
-            if self.initial_item_type == "q":
-                self.currently_serving = "e"
-            else:
-                self.currently_serving = "c"
-        elif self.initial_item_type == "e":
+        # initial item type was questions and we're done serving questions; move onto exercises
+        if self.currently_serving == "q" and self.initial_item_type == "q":
+            self.currently_serving = "e"
+
+        # initial item type was exercises and we're done serving exercises; move onto questions
+        elif self.currently_serving == "e" and self.initial_item_type == "e":
             self.currently_serving = "q"
+
+        # we're done serving a type of items which is the other one than the initial one:
+        # we're done with all item types
         else:
             self.currently_serving = "c"
+
         self.save()
 
     def move_to_next_category(self):
@@ -396,14 +410,12 @@ class ExamProgress(models.Model):
         Resets the `served_for_current_category` counter, adds current category to list of
         `exhausted_categories`, and randomly picks a new category
         """
-        print("RESETTING CATEGORY")
         self.served_for_current_category = 0
 
         if self.current_category is not None:
             self.exhausted_categories.add(self.current_category)
         self.current_category = None
         self.save()
-        print("CATEGORY SUCCESSFULLY RESET")
 
         remaining_categories = self.exam.categories.filter(
             item_type=self.currently_serving
@@ -412,6 +424,7 @@ class ExamProgress(models.Model):
         if remaining_categories.count() == 0:  # exhausted all categories
             raise OutOfCategories
 
+        # ! only do the .order_by("?") if the exam flag for randomizing self.currently_serving is True
         random_category = remaining_categories.order_by("?")[0]  # pick a new category
 
         self.current_category = random_category
@@ -442,10 +455,7 @@ class ExamProgress(models.Model):
         if item is None:
             self.move_to_next_type()
             return self.get_next_item(force_next=force_next)
-        if self.current_category is not None:
-            print(
-                f"CURRENTLY SERVED {self.served_for_current_category} FOR {self.current_category}: SHOULD SERVE {self.current_category.amount - self.served_for_current_category} MORE"
-            )
+
         return item
 
     def _get_item(self, type):
@@ -491,6 +501,7 @@ class ExamProgress(models.Model):
             # user has completed all items of this type
             return None
 
+        # ! to the .order_by("?") only if self.current_category.randomize
         random_item = available_items.order_by("?")[0]
 
         self.served_for_current_category += 1
