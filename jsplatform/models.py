@@ -83,6 +83,8 @@ class Category(models.Model):
     # that is shown together with the questions that make up this category
     introduction_text = models.TextField(blank=True, null=True)
 
+    randomize = models.BooleanField(default=True)
+
     # temporarily stores the uuid provided by the frontend for this category to allow
     # for referencing during the creation of categories and questions/exercises all at once
     tmp_uuid = models.UUIDField(verbose_name="frontend_uuid", null=True, blank=True)
@@ -449,6 +451,11 @@ class ExamProgress(models.Model):
                 else self.current_question
             )
 
+        # ? if self.exam.all_at_once and self.currently_serving == "q":
+        # ?      items = self._get_full_exam_questions()
+        # ?      return items
+        # ? else:
+
         item = self._get_item(type=self.currently_serving)
 
         # all items of the current type have been completed already; move onto the next type
@@ -465,15 +472,15 @@ class ExamProgress(models.Model):
         """
         # if this is the first item we're getting or we've gotten as many item for this
         # category as we wanted to, move onto next category
-        if (
+        while (
             self.current_category is None
             or self.served_for_current_category == self.current_category.amount
+            or self.current_category.amount == 0
         ):
+            print("moving")
             try:
                 self.move_to_next_category()
-                print("SUCCESSFULLY MOVED TO NEXT CAT")
-            except OutOfCategories:  # we exhausted all the categories; there are no more questions to return
-                print("OUT OF QUESTION CAT")
+            except OutOfCategories:  # we exhausted all the categories; there are no more items to return
                 return None
 
         verbose_type = "question" if type == "q" else "exercise"
@@ -501,8 +508,10 @@ class ExamProgress(models.Model):
             # user has completed all items of this type
             return None
 
-        # ! to the .order_by("?") only if self.current_category.randomize
-        random_item = available_items.order_by("?")[0]
+        if self.current_category.randomize:
+            available_items = available_items.order_by("?")
+
+        random_item = available_items[0]
 
         self.served_for_current_category += 1
         setattr(self, current_item_attr, random_item)

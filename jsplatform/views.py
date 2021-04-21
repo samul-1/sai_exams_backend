@@ -125,7 +125,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             "request": request,
         }
 
-        # determine if the item retrieved is a coding exercise or a multiple choice question
+        # determine if the item retrieved is a programming exercise or a question
         if isinstance(item, Exercise):
             # retrieve user's submissions to this exercise and send them along
             student_submissions = item.submissions.filter(user=request.user)

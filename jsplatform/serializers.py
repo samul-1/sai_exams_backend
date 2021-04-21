@@ -244,6 +244,7 @@ class CategorySerializer(serializers.ModelSerializer):
             "amount",
             "is_aggregated_question",
             "introduction_text",
+            "randomize",
         ]
 
     def __init__(self, *args, **kwargs):
