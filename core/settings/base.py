@@ -31,6 +31,13 @@ ALLOWED_HOSTS = ["*"]
 
 AUTH_USER_MODEL = "users.User"
 
+DEFAULT_RENDERER_CLASSES = ("rest_framework.renderers.JSONRenderer",)
+
+if DEBUG:
+    DEFAULT_RENDERER_CLASSES = DEFAULT_RENDERER_CLASSES + (
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    )
+
 REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "burst": "",
@@ -46,8 +53,8 @@ REST_FRAMEWORK = {
         "rest_framework_social_oauth2.authentication.SocialAuthentication",
     ),
     "DATETIME_FORMAT": "%Y-%m-%d %H:%M:%S",
+    "DEFAULT_RENDERER_CLASSES": DEFAULT_RENDERER_CLASSES,
 }
-#
 
 CORS_ORIGIN_ALLOW_ALL = True
 

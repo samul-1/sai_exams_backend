@@ -35,6 +35,8 @@ class Exam(models.Model):
     )
     begin_timestamp = models.DateTimeField()
     end_timestamp = models.DateTimeField()
+    randomize_questions = models.BooleanField(default=True)
+    randomize_exercises = models.BooleanField(default=True)
 
     def __str__(self):
         return self.name
@@ -426,8 +428,12 @@ class ExamProgress(models.Model):
         if remaining_categories.count() == 0:  # exhausted all categories
             raise OutOfCategories
 
-        # ! only do the .order_by("?") if the exam flag for randomizing self.currently_serving is True
-        random_category = remaining_categories.order_by("?")[0]  # pick a new category
+        if (self.currently_serving == "q" and self.exam.randomize_questions) or (
+            self.currently_serving == "e" and self.exam.randomize_exercises
+        ):
+            remaining_categories = remaining_categories.order_by("?")
+
+        random_category = remaining_categories[0]  # pick a new category
 
         self.current_category = random_category
         self.save()

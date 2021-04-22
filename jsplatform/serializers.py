@@ -28,6 +28,8 @@ class ExamSerializer(serializers.ModelSerializer):
             self.fields["exercises"] = ExerciseSerializer(many=True, **kwargs)
             self.fields["questions"] = QuestionSerializer(many=True, **kwargs)
             self.fields["categories"] = CategorySerializer(many=True, **kwargs)
+            self.fields["randomize_questions"] = serializers.BooleanField()
+            self.fields["randomize_exercises"] = serializers.BooleanField()
         else:
             # if requesting user isn't a teacher, show only the exercise/question that's
             # currently assigned to them
