@@ -283,11 +283,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Question
-        fields = [
-            "id",
-            "text",
-            "question_type",
-        ]
+        fields = ["id", "text", "question_type", "accepts_multiple_answers"]
 
     def __init__(self, *args, **kwargs):
         super(QuestionSerializer, self).__init__(*args, **kwargs)

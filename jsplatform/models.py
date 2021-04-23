@@ -143,9 +143,9 @@ class ExamReport(models.Model):
         for i in range(0, question_count):
             headers.append(f"Domanda { i+1 } testo")
             headers.append(f"Domanda { i+1 } risposta data")
+            headers.append(f"Domanda { i+1 } risposta corretta")
             headers.append(f"Domanda { i+1 } orario visualizzazione")
             headers.append(f"Domanda { i+1 } orario risposta")
-            headers.append(f"Domanda { i+1 } risposta corretta")
 
         self.headers = headers
         self.save()
@@ -169,8 +169,8 @@ class ExamReport(models.Model):
             # process each participant
 
             participant_details = {
-                "email": participant.email,
-                "corso": participant.course,
+                "Email": participant.email,
+                "Corso": participant.course,
             }
 
             # get submission data for this participant for each exercise in the exam
@@ -210,33 +210,71 @@ class ExamReport(models.Model):
                 question_details = {
                     f"Domanda { questionCount } testo": question.text
                 }  # question.text
-                try:
-                    given_answer = question.given_answers.get(user=participant)
 
-                except GivenAnswer.DoesNotExist:  # no answer was given (not even skip)
-                    given_answer = GivenAnswer(answer=None)  # dummy answer
+                given_answers = question.given_answers.filter(user=participant)
 
-                question_details[f"Domanda { questionCount } risposta data"] = (
-                    given_answer.text
-                    if given_answer.question.question_type == "o"
-                    else (
-                        given_answer.answer.text
-                        if given_answer.answer is not None
-                        else None
+                if given_answers.count() == 0:  # no answer was given (not even skip)
+                    given_answers = [GivenAnswer(answer=None)]  # dummy answer
+
+                question_details[f"Domanda { questionCount } risposta data"] = []
+                question_details[f"Domanda { questionCount } risposta corretta"] = []
+
+                for given_answer in given_answers:
+                    question_details[f"Domanda { questionCount } risposta data"].append(
+                        given_answer.text
+                        if given_answer.question.question_type == "o"
+                        else (
+                            given_answer.answer.text
+                            if given_answer.answer is not None
+                            else None
+                        )
+                    )
+                    if given_answer.question.question_type == "m":
+                        question_details[
+                            f"Domanda { questionCount } risposta corretta"
+                        ].append(
+                            given_answer.answer.is_right_answer  # given_answer.answer.text
+                            if given_answer.answer is not None
+                            else False
+                        )
+                question_details[
+                    f"Domanda { questionCount } risposta data"
+                ] = "\n ".join(
+                    list(
+                        map(
+                            lambda r: str(r),
+                            question_details[
+                                f"Domanda { questionCount } risposta data"
+                            ],
+                        )
                     )
                 )
+
+                question_details[
+                    f"Domanda { questionCount } risposta corretta"
+                ] = "\n ".join(
+                    list(
+                        map(
+                            lambda r: str(r),
+                            question_details[
+                                f"Domanda { questionCount } risposta corretta"
+                            ],
+                        )
+                    )
+                )
+
                 question_details[
                     f"Domanda { questionCount } orario visualizzazione"
                 ] = "-"
                 question_details[f"Domanda { questionCount } orario risposta"] = str(
                     given_answer.timestamp
                 )
-                if given_answer.question.question_type == "m":
-                    question_details[f"Domanda { questionCount } risposta corretta"] = (
-                        given_answer.answer.is_right_answer  # given_answer.answer.text
-                        if given_answer.answer is not None
-                        else False
-                    )
+                # if given_answer.question.question_type == "m":
+                #     question_details[f"Domanda { questionCount } risposta corretta"] = (
+                #         given_answer.answer.is_right_answer  # given_answer.answer.text
+                #         if given_answer.answer is not None
+                #         else False
+                #     )
 
                 participant_details.update(question_details)
                 questionCount += 1
@@ -271,6 +309,7 @@ class Question(models.Model):
     question_type = models.CharField(default="m", choices=QUESTION_TYPES, max_length=1)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
+    accepts_multiple_answers = models.BooleanField(default=False)
 
     def __str__(self):
         return self.text
@@ -704,13 +743,13 @@ class GivenAnswer(models.Model):
     def __str__(self):
         return str(self.question) + " " + str(self.answer)
 
-    def save(self, *args, **kwargs):
+    def save(self, get_next_item=True, *args, **kwargs):
         if self.answer not in self.question.answers.all() and self.answer is not None:
             raise InvalidAnswerException
 
         creating = not self.pk  # see if the objects exists already or is being created
         super(GivenAnswer, self).save(*args, **kwargs)  # create the object
-        if creating:
+        if creating and get_next_item:
             if self.answer is not None:
                 # increment number of selections for selected answer
                 self.answer.selections += 1

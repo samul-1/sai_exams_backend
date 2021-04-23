@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 from . import filters, throttles
 from .exceptions import InvalidAnswerException, NotEligibleForTurningIn
 from .models import (
+    Answer,
     Exam,
     ExamProgress,
     ExamReport,
@@ -247,6 +248,33 @@ class GivenAnswerViewSet(viewsets.ModelViewSet):
         question = get_object_or_404(Question, pk=question_id)
 
         serializer.save(question=question, user=self.request.user)
+
+    @action(detail=False, methods=["post"])
+    def multiple(self, request, pk=None, **kwargs):
+        """
+        Creates multiple answers to a question
+        """
+        question_id = self.kwargs["question_pk"]
+        question = get_object_or_404(Question, pk=question_id)
+
+        answer_pks = request.data["answer"]
+        if len(answer_pks) == 0:
+            given_answer = GivenAnswer(
+                user=request.user, question=question, answer=None
+            )
+            given_answer.save(get_next_item=False)
+
+        for answer_pk in answer_pks:
+            answer = get_object_or_404(Answer, pk=answer_pk)
+            given_answer = GivenAnswer(
+                user=request.user, question=question, answer=answer
+            )
+            given_answer.save(get_next_item=False)
+
+        # move onto next item
+        question.exam.get_item_for(request.user, force_next=True)
+
+        return Response(status=status.HTTP_200_OK)
 
 
 class SubmissionViewSet(viewsets.ModelViewSet):
