@@ -4,4 +4,5 @@ from . import views
 
 urlpatterns = [
     re_path(r"^auth/", include("rest_framework_social_oauth2.urls")),
+    path("teachers/", views.TeacherList.as_view(), name="teacher-list"),
 ]
