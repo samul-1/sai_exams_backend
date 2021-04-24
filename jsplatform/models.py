@@ -31,12 +31,29 @@ class Exam(models.Model):
     updated = models.DateTimeField(auto_now=True)
     draft = models.BooleanField(default=True)
     locked_by = models.ForeignKey(
-        User, null=True, blank=True, on_delete=models.SET_NULL
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="exams_locked_by",
     )
     begin_timestamp = models.DateTimeField()
     end_timestamp = models.DateTimeField()
     randomize_questions = models.BooleanField(default=True)
     randomize_exercises = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        User,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="exams_created_by",
+    )
+    allowed_teachers = models.ManyToManyField(
+        User,
+        blank=True,
+        limit_choices_to={"is_teacher": True},
+        related_name="exams_referred_by",
+    )
 
     def __str__(self):
         return self.name
@@ -397,6 +414,7 @@ class ExamProgress(models.Model):
     # lists the categories for which questions/exercises have been served already
     exhausted_categories = models.ManyToManyField(Category, blank=True)
 
+    #! add limit_choices_to to all these fields
     current_exercise = models.ForeignKey(
         Exercise,
         related_name="current_in_exams",
