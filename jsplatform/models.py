@@ -39,6 +39,15 @@ class Exam(models.Model):
     )
     begin_timestamp = models.DateTimeField()
     end_timestamp = models.DateTimeField()
+    closed = models.BooleanField(default=False)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="exams_closed_by",
+    )
     randomize_questions = models.BooleanField(default=True)
     randomize_exercises = models.BooleanField(default=True)
     created_by = models.ForeignKey(
@@ -57,6 +66,17 @@ class Exam(models.Model):
 
     def __str__(self):
         return self.name
+
+    def get_mock_exam(self, user):
+        """
+        Returns a read-only mock exam
+        """
+        progress = ExamProgress.objects.create(exam=self, user=user)
+        mock = progress.simulate()
+        print("MOCK")
+        print(mock)
+        progress.delete()
+        return mock
 
     def get_item_for(self, user, force_next=False):
         """
@@ -494,6 +514,22 @@ class ExamProgress(models.Model):
 
         self.current_category = random_category
         self.save()
+
+    def simulate(self):
+        """
+        Returns a mock exam in the form of a list of questions and one of exercises, representing
+        what an instance of the exam could look like with the given exam settings
+        """
+        questions = []
+        exercises = []
+
+        while (item := self.get_next_item(force_next=True)) is not None:
+            if isinstance(item, Question):
+                questions.append(item)
+            else:
+                exercises.append(item)
+
+        return (questions, exercises)
 
     def get_next_item(self, force_next=False):
         """

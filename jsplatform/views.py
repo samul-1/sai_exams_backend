@@ -87,6 +87,34 @@ class ExamViewSet(viewsets.ModelViewSet):
     permission_classes = [TeachersOnly]
     renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
 
+    @action(detail=True, methods=["post"])
+    def mock(self, request, **kwargs):
+        """
+        Returns a mock exam representing a simulation of the requested exam, showing a possible combination of questions
+        that could be picked according to the exam settings.
+        """
+        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))
+        questions, exercises = exam.get_mock_exam(user=request.user)
+
+        context = {
+            "request": request,
+        }
+
+        exercises_data = ExerciseSerializer(
+            exercises, many=True, context=context, **kwargs
+        )
+        print("EX VALID")
+        questions_data = QuestionSerializer(
+            questions, many=True, context=context, **kwargs
+        )
+
+        return Response(
+            data={
+                "questions": questions_data.data,
+                "exercises": exercises_data.data,
+            }
+        )
+
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def my_exam(self, request, **kwargs):
         """
