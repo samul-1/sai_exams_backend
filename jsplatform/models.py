@@ -258,8 +258,8 @@ class ExamReport(models.Model):
 
                 for given_answer in given_answers:
                     print("GIVEN ANSWER")
-                    print(given_answer)
                     print(given_answer.pk)
+                    print(given_answer)
                     question_details[f"Domanda { questionCount } risposta data"].append(
                         given_answer.text
                         if given_answer.question.question_type == "o"
