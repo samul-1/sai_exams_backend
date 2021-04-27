@@ -221,7 +221,9 @@ class ExamReport(models.Model):
                         user=participant, has_been_turned_in=True
                     )
                 except Submission.DoesNotExist:  # no submission was turned in
-                    submission = Submission()  # dummy submission
+                    submission = Submission(
+                        exercise=exercise, user=participant
+                    )  # dummy submission
 
                 exercise_details[
                     f"Esercizio JS { exerciseCount } sottomissione"
@@ -251,7 +253,9 @@ class ExamReport(models.Model):
                 given_answers = question.given_answers.filter(user=participant)
 
                 if given_answers.count() == 0:  # no answer was given (not even skip)
-                    given_answers = [GivenAnswer(answer=None)]  # dummy answer
+                    given_answers = [
+                        GivenAnswer(answer=None, question=question, user=participant)
+                    ]  # dummy answer
 
                 question_details[f"Domanda { questionCount } risposta data"] = []
                 question_details[f"Domanda { questionCount } risposta corretta"] = []
