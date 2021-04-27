@@ -3,6 +3,7 @@ import sys
 from django.apps import apps
 from django.forms.models import model_to_dict
 from rest_framework import serializers
+from users.serializers import UserSerializer
 
 from .models import (
     Answer,
@@ -19,7 +20,13 @@ from .models import (
 class ExamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exam
-        fields = ["id", "name", "draft", "begin_timestamp", "end_timestamp"]
+        fields = [
+            "id",
+            "name",
+            "draft",
+            "begin_timestamp",
+            "end_timestamp",
+        ]
 
     def __init__(self, *args, **kwargs):
         super(ExamSerializer, self).__init__(*args, **kwargs)
@@ -30,6 +37,9 @@ class ExamSerializer(serializers.ModelSerializer):
             self.fields["categories"] = CategorySerializer(many=True, **kwargs)
             self.fields["randomize_questions"] = serializers.BooleanField()
             self.fields["randomize_exercises"] = serializers.BooleanField()
+            self.fields["created_by"] = UserSerializer(read_only=True)
+            self.fields["allowed_teachers"] = UserSerializer(many=True, required=False)
+            self.fields["closed"] = serializers.BooleanField()
         else:
             # if requesting user isn't a teacher, show only the exercise/question that's
             # currently assigned to them

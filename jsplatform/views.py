@@ -85,7 +85,9 @@ class ExamViewSet(viewsets.ModelViewSet):
     queryset = Exam.objects.all()
     # only allow teachers to access exams' data
     permission_classes = [TeachersOnly]
-    renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
+    # limit exam access for a user to those created by them or to which they've been granted access
+    filter_backends = [filters.ExamCreatorAndAllowed]
+    # renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
 
     @action(detail=True, methods=["post"])
     def mock(self, request, **kwargs):
@@ -134,7 +136,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 data={"message": "L'esame non è  ancora iniziato"},
             )
 
-        if exam.end_timestamp <= now:
+        if exam.closed:  # exam.end_timestamp <= now:
             return Response(
                 status=status.HTTP_404_NOT_FOUND,
                 data={"message": "L'esame è terminato"},
@@ -166,11 +168,31 @@ class ExamViewSet(viewsets.ModelViewSet):
         serializer = ExamSerializer(instance=exam, context=context, **kwargs)
         return Response(serializer.data)
 
+    @action(detail=True, methods=["patch"])
+    def terminate(self, request, **kwargs):
+        now = timezone.localtime(timezone.now())
+
+        exam = self.get_object()
+        exam.closed = True
+        exam.closed_at = now
+        exam.closed_by = request.user
+
+        exam.save()
+
+        context = {
+            "request": request,
+        }
+        serializer = ExamSerializer(instance=exam, context=context)
+        return Response(status=status.HTTP_200_OK, data=serializer.data)
+
     @action(detail=True, methods=["post"])
     def report(self, request, **kwargs):
         exam = self.get_object()
         report, _ = ExamReport.objects.get_or_create(exam=exam)
         return Response(report.details)
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
     def get_renderer_context(self):
         context = super().get_renderer_context()
@@ -227,6 +249,7 @@ class ExerciseViewSet(viewsets.ModelViewSet):
 class GivenAnswerViewSet(viewsets.ModelViewSet):
     serializer_class = GivenAnswerSerializer
     queryset = GivenAnswer.objects.all()
+    # ! add filter to prevent accessing other people's answers
 
     # def dispatch(self, request, *args, **kwargs):
     #     # this method prevents users from accessing `questions/id/given_answers` for questions

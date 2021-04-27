@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import filters
 
 
@@ -33,3 +34,16 @@ class TeacherOrAssignedOnly(filters.BaseFilterBackend):
     #         # filter for exercises that have been assigned to the user
     #         return queryset.filter(id__in=request.user.assigned_exercises.all())
     #     return queryset
+
+
+class ExamCreatorAndAllowed(filters.BaseFilterBackend):
+    """
+    Limits the exam queryset to those the user has either created or has been allowed to access
+    """
+
+    def filter_queryset(self, request, queryset, view):
+        if request.user.is_teacher:
+            return queryset.filter(
+                Q(created_by=request.user) | Q(allowed_teachers__in=[request.user])
+            )
+        return queryset

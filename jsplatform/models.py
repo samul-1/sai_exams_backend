@@ -149,7 +149,7 @@ class ExamReport(models.Model):
     def save(self, *args, **kwargs):
         now = timezone.localtime(timezone.now())
 
-        if self.exam.end_timestamp > now:
+        if not self.exam.closed:
             # prevent creation of report if exam is still undergoing
             raise ExamNotOverYet
 
@@ -257,6 +257,9 @@ class ExamReport(models.Model):
                 question_details[f"Domanda { questionCount } risposta corretta"] = []
 
                 for given_answer in given_answers:
+                    print("GIVEN ANSWER")
+                    print(given_answer)
+                    print(given_answer.pk)
                     question_details[f"Domanda { questionCount } risposta data"].append(
                         given_answer.text
                         if given_answer.question.question_type == "o"

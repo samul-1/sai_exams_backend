@@ -8,6 +8,9 @@ router = routers.SimpleRouter()
 router.register(r"exercises", views.ExerciseViewSet)
 router.register(r"exams", views.ExamViewSet)
 router.register(r"questions", views.QuestionViewSet)
+router.register(
+    r"given_answers", views.GivenAnswerViewSet
+)  # used for posting multiple answers to multiple questions at once
 
 exercise_router = routers.NestedSimpleRouter(router, r"exercises", lookup="exercise")
 question_router = routers.NestedSimpleRouter(router, r"questions", lookup="question")
