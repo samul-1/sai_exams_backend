@@ -39,7 +39,7 @@ class ExamSerializer(serializers.ModelSerializer):
             self.fields["randomize_exercises"] = serializers.BooleanField()
             self.fields["created_by"] = UserSerializer(read_only=True)
             self.fields["allowed_teachers"] = UserSerializer(many=True, required=False)
-            self.fields["closed"] = serializers.BooleanField()
+            self.fields["closed"] = serializers.BooleanField(required=False)
         else:
             # if requesting user isn't a teacher, show only the exercise/question that's
             # currently assigned to them
