@@ -45,5 +45,5 @@ class ExamCreatorAndAllowed(filters.BaseFilterBackend):
         if request.user.is_teacher:
             return queryset.filter(
                 Q(created_by=request.user) | Q(allowed_teachers__in=[request.user])
-            )
+            ).distinct()
         return queryset

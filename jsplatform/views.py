@@ -87,7 +87,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     permission_classes = [TeachersOnly]
     # limit exam access for a user to those created by them or to which they've been granted access
     filter_backends = [filters.ExamCreatorAndAllowed]
-    renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
+    # renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
 
     @action(detail=True, methods=["post"])
     def mock(self, request, **kwargs):

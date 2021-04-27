@@ -3,6 +3,7 @@ import sys
 from django.apps import apps
 from django.forms.models import model_to_dict
 from rest_framework import serializers
+from users.models import User
 from users.serializers import UserSerializer
 
 from .models import (
@@ -38,7 +39,11 @@ class ExamSerializer(serializers.ModelSerializer):
             self.fields["randomize_questions"] = serializers.BooleanField()
             self.fields["randomize_exercises"] = serializers.BooleanField()
             self.fields["created_by"] = UserSerializer(read_only=True)
-            self.fields["allowed_teachers"] = UserSerializer(many=True, required=False)
+            self.fields["allowed_teachers"] = serializers.PrimaryKeyRelatedField(
+                many=True,
+                required=False,
+                queryset=User.objects.filter(is_teacher=True),
+            )
             self.fields["closed"] = serializers.BooleanField(required=False)
         else:
             # if requesting user isn't a teacher, show only the exercise/question that's
