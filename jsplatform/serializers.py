@@ -56,8 +56,10 @@ class ExamSerializer(serializers.ModelSerializer):
         questions = validated_data.pop("questions")
         exercises = validated_data.pop("exercises")
         categories = validated_data.pop("categories")
+        allowed_teachers = validated_data.pop("allowed_teachers")
 
         exam = Exam.objects.create(**validated_data)
+        exam.allowed_teachers.set(allowed_teachers)
 
         # create categories
         for category in categories:
