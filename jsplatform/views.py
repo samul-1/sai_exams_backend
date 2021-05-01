@@ -89,12 +89,20 @@ class ExamViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.ExamCreatorAndAllowed]
     # renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
 
+    def update(self, request, pk=None):
+        exam = self.get_object()
+        if exam.locked_by is not None and request.user != exam.locked_by:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        return super(ExamViewSet, self).update(request)
+
     @action(detail=True, methods=["post"])
     def mock(self, request, **kwargs):
         """
         Returns a mock exam representing a simulation of the requested exam, showing a possible combination of questions
         that could be picked according to the exam settings.
         """
+        # ? use self.get_object()
         exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))
         questions, exercises = exam.get_mock_exam(user=request.user)
 
@@ -105,7 +113,6 @@ class ExamViewSet(viewsets.ModelViewSet):
         exercises_data = ExerciseSerializer(
             exercises, many=True, context=context, **kwargs
         )
-        print("EX VALID")
         questions_data = QuestionSerializer(
             questions, many=True, context=context, **kwargs
         )

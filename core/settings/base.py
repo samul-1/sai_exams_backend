@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     "oauth2_provider",
     "social_django",
     "rest_framework_social_oauth2",
+    "channels",
 ]
 
 SITE_ID = 1
@@ -152,6 +153,13 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.environ.get(
 
 
 WSGI_APPLICATION = "core.wsgi.application"
+
+# Channels
+ASGI_APPLICATION = "core.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
+}
 
 
 # Database

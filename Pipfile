@@ -25,6 +25,7 @@ dj-database-url = "*"
 psycopg2-binary = "*"
 psycopg2 = "*"
 whitenoise = "*"
+channels = "*"
 
 [dev-packages]
 
