@@ -8,7 +8,6 @@ from oauth2_provider.models import AccessToken
 @database_sync_to_async
 def get_user(token_key):
     try:
-        print("-------GETTING USER----------")
         now = timezone.localtime(timezone.now())
         token = AccessToken.objects.get(token=token_key, expires__gt=now)
         return token.user
@@ -21,9 +20,6 @@ class TokenAuthMiddleware(BaseMiddleware):
         self.inner = inner
 
     async def __call__(self, scope, receive, send):
-        print("QS")
-        print(dict(scope)["query_string"])
-
         query = dict((x.split("=") for x in scope["query_string"].decode().split("&")))
         token_key = query.get("token")
         scope["user"] = await get_user(token_key)

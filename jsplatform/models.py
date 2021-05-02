@@ -2,6 +2,8 @@ import json
 import os
 import subprocess
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
@@ -66,6 +68,20 @@ class Exam(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        super(Exam, self).save(*args, **kwargs)
+
+        action = "unlock" if self.locked_by is None else "lock"
+
+        message = {"id": self.pk, "type": "receive", "action": action}
+
+        if self.locked_by is not None:
+            message["by"] = self.locked_by.get_full_name()
+
+        # send update to exam list consumer about exam's locked status
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)("exam_list", message)
 
     def get_mock_exam(self, user):
         """

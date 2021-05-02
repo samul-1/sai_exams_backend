@@ -17,3 +17,6 @@ class User(AbstractUser):
         if creating and self.email.split("@")[1] == "unipi.it":
             self.is_teacher = True
             self.save()
+
+    def get_full_name(self):
+        return self.first_name.capitalize() + " " + self.last_name.capitalize()

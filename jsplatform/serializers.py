@@ -45,6 +45,7 @@ class ExamSerializer(serializers.ModelSerializer):
                 queryset=User.objects.filter(is_teacher=True),
             )
             self.fields["closed"] = serializers.BooleanField(required=False)
+            self.fields["locked_by"] = serializers.SerializerMethodField()
         else:
             # if requesting user isn't a teacher, show only the exercise/question that's
             # currently assigned to them
@@ -251,6 +252,9 @@ class ExamSerializer(serializers.ModelSerializer):
         except Exception:
             return None
 
+    def get_locked_by(self, obj):
+        return obj.locked_by.get_full_name() if obj.locked_by is not None else None
+
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -369,8 +373,6 @@ class QuestionSerializer(serializers.ModelSerializer):
         return instance
 
     def get_introduction(self, obj):
-        print("CATEGORY -----------------")
-        print(obj.category)
         return obj.category.introduction_text
 
 
