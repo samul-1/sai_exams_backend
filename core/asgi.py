@@ -6,7 +6,6 @@ It exposes the ASGI callable as a module-level variable named ``application``.
 For more information on this file, see
 https://docs.djangoproject.com/en/3.1/howto/deployment/asgi/
 """
-
 import os
 
 import jsplatform.routing
@@ -17,11 +16,11 @@ from jsplatform.socket_auth_middleware import TokenAuthMiddleware
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 
-# application = get_asgi_application() - commented when installed channels
+django_asgi_app = get_asgi_application()
 
 application = ProtocolTypeRouter(
     {
-        "http": get_asgi_application(),
+        "http": django_asgi_app,
         "websocket": TokenAuthMiddleware(
             URLRouter(jsplatform.routing.websocket_patterns)
         ),
