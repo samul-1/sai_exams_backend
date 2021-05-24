@@ -231,7 +231,13 @@ class ExamReport(models.Model):
             exerciseCount = 1
             for exercise in exercises.filter(
                 Q(pk__in=participant_state.completed_exercises.all())
-                | Q(pk=participant_state.current_exercise.pk)
+                | Q(
+                    pk=(
+                        participant_state.current_exercise.pk
+                        if participant_state.current_exercise is not None
+                        else 0
+                    )
+                )
             ):
                 exercise_details = {
                     f"Esercizio JS { exerciseCount } testo": exercise.text
@@ -267,7 +273,13 @@ class ExamReport(models.Model):
             questionCount = 1
             for question in questions.filter(
                 Q(pk__in=participant_state.completed_questions.all())
-                | Q(pk=participant_state.current_question.pk)
+                | Q(
+                    pk=(
+                        participant_state.current_question.pk
+                        if participant_state.current_question is not None
+                        else 0
+                    )
+                )
             ):
                 question_details = {
                     f"Domanda { questionCount } testo": question.text
