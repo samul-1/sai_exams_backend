@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
@@ -86,8 +87,9 @@ class ExamViewSet(viewsets.ModelViewSet):
     # only allow teachers to access exams' data
     permission_classes = [TeachersOnly]
     # limit exam access for a user to those created by them or to which they've been granted access
-    filter_backends = [filters.ExamCreatorAndAllowed]
+    filter_backends = [filters.ExamCreatorAndAllowed, OrderingFilter]
     renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
+    ordering = ["pk"]
 
     def update(self, request, pk=None):
         exam = self.get_object()

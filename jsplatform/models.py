@@ -8,7 +8,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.db.models import JSONField
+from django.db.models import JSONField, Q
 from django.utils import timezone
 from users.models import User
 
@@ -225,10 +225,14 @@ class ExamReport(models.Model):
                 "Email": participant.email,
                 "Corso": participant.course,
             }
+            participant_state = self.exam.participations.get(user=participant)
 
             # get submission data for this participant for each exercise in the exam
             exerciseCount = 1
-            for exercise in exercises:
+            for exercise in exercises.filter(
+                Q(pk__in=participant_state.completed_exercises.all())
+                | Q(pk=participant_state.current_exercise.pk)
+            ):
                 exercise_details = {
                     f"Esercizio JS { exerciseCount } testo": exercise.text
                 }
@@ -261,7 +265,10 @@ class ExamReport(models.Model):
 
             # get submission data for this participant for each question in the exam
             questionCount = 1
-            for question in questions:
+            for question in questions.filter(
+                Q(pk__in=participant_state.completed_questions.all())
+                | Q(pk=participant_state.current_question.pk)
+            ):
                 question_details = {
                     f"Domanda { questionCount } testo": question.text
                 }  # question.text
