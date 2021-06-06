@@ -4,16 +4,16 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-django = "<3.2"
+Django = "<3.2"
 djangorestframework = "<3.12.0"
-markdown = "*"
+Markdown = "*"
 django-filter = "*"
 django-debug-toolbar = "*"
 drf-nested-routers = "*"
 mkdocs = "*"
 djoser = "*"
 django-cors-headers = "*"
-pyyaml = "*"
+PyYAML = "*"
 uritemplate = "*"
 django-allauth = "*"
 django-rest-auth = "*"
@@ -26,6 +26,10 @@ psycopg2-binary = "*"
 psycopg2 = "*"
 whitenoise = "*"
 channels = "*"
+reportlab = "*"
+xhtml2pdf = "*"
+html5lib = "*"
+pypdf = "*"
 
 [dev-packages]
 

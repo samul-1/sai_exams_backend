@@ -7,6 +7,7 @@ from channels.layers import get_channel_layer
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
+from django.core.files.base import ContentFile
 from django.db import models
 from django.db.models import JSONField, Q
 from django.utils import timezone
@@ -20,6 +21,7 @@ from .exceptions import (
     OutOfCategories,
     SubmissionAlreadyTurnedIn,
 )
+from .pdf import render_to_pdf
 from .utils import run_code_in_vm
 
 
@@ -438,6 +440,10 @@ class Exercise(models.Model):
         return self.testcases.filter(is_public=True)
 
 
+def get_pdf_upload_path(instance, filename):
+    return "exam_reports/{0}".format(instance.exam.pk)
+
+
 class ExamProgress(models.Model):
     """
     Represents the progress of a user during an exam, that is the exercises they've already
@@ -459,6 +465,8 @@ class ExamProgress(models.Model):
         Exam, on_delete=models.CASCADE, related_name="participations"
     )
 
+    pdf_report = models.FileField(upload_to=get_pdf_upload_path, null=True, blank=True)
+
     # ! make this settable on a per-exam basis instead of hard-coding a default
     # determines what the first type of exam items that should be served is
     initial_item_type = models.CharField(max_length=1, default="q", choices=EXAM_ITEMS)
@@ -476,7 +484,7 @@ class ExamProgress(models.Model):
     # lists the categories for which questions/exercises have been served already
     exhausted_categories = models.ManyToManyField(Category, blank=True)
 
-    #! add limit_choices_to to all these fields
+    # ! add limit_choices_to to all these fields
     current_exercise = models.ForeignKey(
         Exercise,
         related_name="current_in_exams",
@@ -505,6 +513,27 @@ class ExamProgress(models.Model):
         related_name="question_completed_in_exams",
         blank=True,
     )
+
+    def get_progress_as_dict(self):
+        """
+        Returns the user's seen questions/exercises and the given answers and submitted solutions as a dict
+        that can be used to generate a pdf (it gets passed as context to the template that is rendered to pdf)
+        """
+        # todo implement
+        return {}
+
+    def generate_pdf(self):
+        """
+        Generate a pdf file containing the seen questions/exercises from this user and the given answers
+        or submitted solutions
+        """
+        template_name = "exam_pdf_report.html"
+        # get the pdf file's binary data
+        pdf_binary = render_to_pdf(template_name, self.get_progress_as_dict())
+
+        # save pdf to disk and associate it to student's exam progress
+        # todo handle cases of people with same full name
+        self.pdf_report.save(self.user.get_full_name(), pdf_binary)
 
     def move_to_next_type(self):
         """

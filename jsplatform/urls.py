@@ -1,3 +1,5 @@
+from core.settings import base as settings
+from django.conf.urls.static import static
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested import routers
@@ -30,3 +32,5 @@ urlpatterns = [
     path("", include(exercise_router.urls)),
     path("", include(question_router.urls)),
 ]
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
