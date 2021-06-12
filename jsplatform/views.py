@@ -126,6 +126,18 @@ class ExamViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @action(detail=True, methods=["get"])
+    def progress_info(self, request, **kwargs):
+        """
+        Returns a response detailing the info regarding the students' progress
+        (to be used while the exam is still open)
+        """
+
+        exam = self.get_object()
+        data = exam.get_current_progress()
+
+        return Response(data)
+
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def my_exam(self, request, **kwargs):
         """

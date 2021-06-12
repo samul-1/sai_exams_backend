@@ -109,6 +109,7 @@ class Exam(models.Model):
         ret = {
             "participants_count": participants_count,
             "participants_progress": [],
+            "exam_name": self.name,
         }
 
         for participant in participants:
@@ -119,6 +120,7 @@ class Exam(models.Model):
                     "id": participant.user.pk,
                     "email": participant.user.email,
                     "full_name": participant.user.get_full_name(),
+                    "course": participant.user.course,
                     "progress": perc_progress,
                 }
             )
@@ -584,9 +586,10 @@ class ExamProgress(models.Model):
         """
 
         total_item_count = self.exam.get_number_of_items_per_exam()
-        return round(
-            float(self.completed_items_count) * 100 / float(total_item_count), 2
-        )
+        if self.completed_items_count is None:
+            return 0
+
+        return round(float(self.completed_items_count) / float(total_item_count), 2)
 
     def get_progress_as_dict(self):
         """
