@@ -30,9 +30,17 @@ class CategoryAdmin(admin.ModelAdmin):
     pass
 
 
+class CompletedQuestionsInline(admin.TabularInline):
+    model = ExamProgress.completed_questions.through
+
+
+class CompletedExercisesInline(admin.TabularInline):
+    model = ExamProgress.completed_exercises.through
+
+
 @admin.register(ExamProgress)
 class ExamProgressAdmin(admin.ModelAdmin):
-    pass
+    inlines = [CompletedQuestionsInline, CompletedExercisesInline]
 
 
 @admin.register(Exercise)

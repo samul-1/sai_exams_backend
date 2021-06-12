@@ -85,6 +85,51 @@ class Exam(models.Model):
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)("exam_list", message)
 
+    def get_number_of_items_per_exam(self):
+        """
+        Returns the total number of items (questions + JS exercises) that will appear in
+        each instance of the exam, regardless of the randomization. This can be calculated
+        by adding the `amount` field of all the categories of the exam
+        """
+
+        amounts = self.categories.all().values("amount")
+        return sum(list(map(lambda a: a["amount"], amounts)))
+
+    def get_current_progress(self):
+        """
+        Returns a dict detailing the current number of participants to the exam and their
+        current progress in terms of how many items they've completed
+        """
+        total_items = self.get_number_of_items_per_exam()
+        participants = self.participations.all().prefetch_related("user")
+        participants_count = participants.count()
+
+        progress_sum = 0
+
+        ret = {
+            "participants_count": participants_count,
+            "participants_progress": [],
+        }
+
+        for participant in participants:
+            perc_progress = participant.get_progress_percentage()
+            progress_sum += perc_progress
+            ret["participants_progress"].append(
+                {
+                    "id": participant.user.pk,
+                    "email": participant.user.email,
+                    "full_name": participant.user.get_full_name(),
+                    "progress": perc_progress,
+                }
+            )
+
+        ret["average_progress"] = (
+            round(progress_sum / float(participants_count), 2)
+            if participants_count > 0
+            else 0
+        )
+        return ret
+
     def get_mock_exam(self, user):
         """
         Returns a read-only mock exam
@@ -145,6 +190,9 @@ class Category(models.Model):
     # temporarily stores the uuid provided by the frontend for this category to allow
     # for referencing during the creation of categories and questions/exercises all at once
     tmp_uuid = models.UUIDField(verbose_name="frontend_uuid", null=True, blank=True)
+
+    class Meta:
+        verbose_name_plural = "categories"
 
     def __str__(self):
         return self.name
@@ -232,7 +280,11 @@ class ExamReport(models.Model):
             # get submission data for this participant for each exercise in the exam
             exerciseCount = 1
             for exercise in exercises.filter(
-                Q(pk__in=participant_state.completed_exercises.all())
+                Q(
+                    pk__in=participant_state.completed_exercises.all().order_by(
+                        "examcompletedexercisesthroughmodel__ordering"
+                    )
+                )
                 | Q(
                     pk=(
                         participant_state.current_exercise.pk
@@ -273,8 +325,13 @@ class ExamReport(models.Model):
 
             # get submission data for this participant for each question in the exam
             questionCount = 1
+            # todo make sure that the current question gets put at the end of the queryset, if it's present
             for question in questions.filter(
-                Q(pk__in=participant_state.completed_questions.all())
+                Q(
+                    pk__in=participant_state.completed_questions.order_by(
+                        "examcompletedquestionsthroughmodel__ordering"
+                    ).all()
+                )
                 | Q(
                     pk=(
                         participant_state.current_question.pk
@@ -484,6 +541,10 @@ class ExamProgress(models.Model):
     # lists the categories for which questions/exercises have been served already
     exhausted_categories = models.ManyToManyField(Category, blank=True)
 
+    completed_items_count = models.PositiveIntegerField(
+        null=True, blank=True, default=None
+    )
+
     # ! add limit_choices_to to all these fields
     current_exercise = models.ForeignKey(
         Exercise,
@@ -495,6 +556,7 @@ class ExamProgress(models.Model):
     )
     completed_exercises = models.ManyToManyField(
         Exercise,
+        through="ExamCompletedExercisesThroughModel",
         related_name="completed_in_exams",
         blank=True,
     )
@@ -510,9 +572,21 @@ class ExamProgress(models.Model):
 
     completed_questions = models.ManyToManyField(
         Question,
+        through="ExamCompletedQuestionsThroughModel",
         related_name="question_completed_in_exams",
         blank=True,
     )
+
+    def get_progress_percentage(self):
+        """
+        Return a float with two decimal digits representing the percentage of completion of the
+        exam in terms of completed items vs total items in the exam
+        """
+
+        total_item_count = self.exam.get_number_of_items_per_exam()
+        return round(
+            float(self.completed_items_count) * 100 / float(total_item_count), 2
+        )
 
     def get_progress_as_dict(self):
         """
@@ -633,6 +707,12 @@ class ExamProgress(models.Model):
             self.move_to_next_type()
             return self.get_next_item(force_next=force_next)
 
+        if self.completed_items_count is None:
+            self.completed_items_count = 0
+        else:
+            self.completed_items_count += 1
+
+        self.save()
         return item
 
     def _get_item(self, type):
@@ -662,7 +742,10 @@ class ExamProgress(models.Model):
 
         if getattr(self, current_item_attr) is not None:
             # mark current item as completed
-            getattr(self, completed_items_attr).add(getattr(self, current_item_attr))
+            getattr(self, completed_items_attr).add(
+                getattr(self, current_item_attr),
+                through_defaults={"ordering": self.completed_items_count},
+            )
             # reset current item
             setattr(self, current_item_attr, None)
             self.save()
@@ -687,6 +770,24 @@ class ExamProgress(models.Model):
         setattr(self, current_item_attr, random_item)
         self.save()
         return random_item
+
+
+class ExamCompletedQuestionsThroughModel(models.Model):
+    ordering = models.PositiveIntegerField()
+    exam_progress = models.ForeignKey(ExamProgress, on_delete=models.CASCADE)
+    completed_question = models.ForeignKey(Question, on_delete=models.CASCADE)
+
+    class Meta:
+        ordering = ["ordering"]
+
+
+class ExamCompletedExercisesThroughModel(models.Model):
+    ordering = models.PositiveIntegerField()
+    exam_progress = models.ForeignKey(ExamProgress, on_delete=models.CASCADE)
+    completed_exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE)
+
+    class Meta:
+        ordering = ["ordering"]
 
 
 class TestCase(models.Model):
