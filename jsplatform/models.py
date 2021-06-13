@@ -105,16 +105,19 @@ class Exam(models.Model):
         participants_count = participants.count()
 
         progress_sum = 0
+        completed_count = 0
 
         ret = {
             "participants_count": participants_count,
             "participants_progress": [],
-            "exam_name": self.name,
         }
 
         for participant in participants:
             perc_progress = participant.get_progress_percentage()
             progress_sum += perc_progress
+            if perc_progress == 1:
+                completed_count += 1
+
             ret["participants_progress"].append(
                 {
                     "id": participant.user.pk,
@@ -130,6 +133,7 @@ class Exam(models.Model):
             if participants_count > 0
             else 0
         )
+        ret["completed_count"] = completed_count
         return ret
 
     def get_mock_exam(self, user):
