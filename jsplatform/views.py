@@ -1,6 +1,6 @@
 import json
 
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -205,6 +205,17 @@ class ExamViewSet(viewsets.ModelViewSet):
         }
         serializer = ExamSerializer(instance=exam, context=context)
         return Response(status=status.HTTP_200_OK, data=serializer.data)
+
+    @action(detail=True, methods=["post"])
+    def zip_archive(self, request, **kwargs):
+        exam = self.get_object()
+        report, _ = ExamReport.objects.get_or_create(exam=exam)
+        if not report.zip_report_archive:
+            report.generate_zip_report_archive()
+        filename = report.zip_report_archive.name.split("/")[-1]
+        return FileResponse(
+            report.zip_report_archive, as_attachment=True, filename=filename
+        )
 
     @action(detail=True, methods=["post"])
     def report(self, request, **kwargs):

@@ -1,6 +1,8 @@
 import json
 import os
 import subprocess
+import zipfile
+from io import BytesIO
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -8,6 +10,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import models
 from django.db.models import JSONField, Q
 from django.utils import timezone
@@ -23,6 +26,10 @@ from .exceptions import (
 )
 from .pdf import preprocess_html_for_pdf, render_to_pdf
 from .utils import run_code_in_vm
+
+
+def get_pdf_upload_path(instance, filename):
+    return "exam_reports/{0}/{1}".format(instance.exam.pk, filename)
 
 
 class Exam(models.Model):
@@ -218,6 +225,10 @@ class ExamReport(models.Model):
     headers = models.JSONField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
 
+    zip_report_archive = models.FileField(
+        upload_to=get_pdf_upload_path, null=True, blank=True
+    )
+
     def save(self, *args, **kwargs):
         now = timezone.localtime(timezone.now())
 
@@ -231,6 +242,38 @@ class ExamReport(models.Model):
             # populate report
             self.generate_headers()
             self.populate()
+
+    def generate_zip_archive(self):
+        # first generate pdf files for all exam participants
+        participations = self.exam.participations.all()
+        for participation in participations:
+            print(participation.pdf_report)
+            if not participation.pdf_report:
+                participation.generate_pdf()
+
+        zip_subdir = "reports"
+        zip_filename = "%s.zip" % self.exam.name
+
+        # get path of files to zip
+        filenames = [f.path for f in map(lambda p: p.pdf_report, participations)]
+        print(filenames)
+        s = BytesIO()
+        zf = zipfile.ZipFile(s, "w")
+
+        for fpath in filenames:
+            # Calculate path for file in zip
+            fdir, fname = os.path.split(fpath)
+            zip_path = os.path.join(zip_subdir, fname)
+
+            # Add file, at correct path
+            zf.write(fpath, zip_path)
+
+        zf.close()
+
+        in_memory_file = InMemoryUploadedFile(
+            s, None, zip_filename, "application/zip", s.__sizeof__(), None
+        )
+        self.zip_report_archive.save("%s.zip" % self.exam.name, in_memory_file)
 
     def generate_headers(self):
         """
@@ -503,10 +546,6 @@ class Exercise(models.Model):
         return self.testcases.filter(is_public=True)
 
 
-def get_pdf_upload_path(instance, filename):
-    return "exam_reports/{0}".format(instance.exam.pk)
-
-
 class ExamProgress(models.Model):
     """
     Represents the progress of a user during an exam, that is the exercises they've already
@@ -683,7 +722,7 @@ class ExamProgress(models.Model):
 
         # save pdf to disk and associate it to student's exam progress
         # todo handle cases of people with same full name
-        self.pdf_report.save(self.user.get_full_name(), (pdf_binary))
+        self.pdf_report.save("%s.pdf" % self.user.get_full_name(), (pdf_binary))
 
     def move_to_next_type(self):
         """
@@ -761,6 +800,7 @@ class ExamProgress(models.Model):
         """
         if self.currently_serving == "c":
             # exam was completed
+            self.generate_pdf()
             return None
 
         if not force_next:
