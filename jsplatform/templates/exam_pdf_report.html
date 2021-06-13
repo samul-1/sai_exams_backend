@@ -3,7 +3,81 @@
   <head>
     <title>Test title</title>
   </head>
+  <style>
+  html {
+    font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    font-weight: 200;
+  }
+  .selected-answer {
+  }
+  .answer-text {
+    border: 1px solid #ccc;
+    padding: 1rem;
+  }
+
+  .answer-text-open {
+    border: 1px solid gray;
+    padding: 2rem;
+    border-radius: 20px;
+  }
+
+  .right-answer {
+    background-color: #DDFFDD;
+  }
+
+  .wrong-answer {
+    background-color: #F6D9D8;
+  }
+
+  .question-text {
+    border-left: 1px solid gray;
+    padding-left: 1rem;
+  }
+
+
+  </style>
   <body>
-    THIS IS JUST A TEST {{ var }}
+    <h1> {{ exam.name }} &ndash; {{ exam.begin_timestamp }}</h1>
+    <h2> {{ user.first_name }} {{ user.last_name }} &ndash; Corso {{ user.course}} &ndash; {{ user.email }}
+{% autoescape off %}
+
+    <main>
+      {% for question in questions %}
+        <h1>Domanda {{ forloop.counter }}</h1>
+        <div class="question-block">
+          <div class="question-text">{{ question.text | safe }}</div>
+          <div class="answer-list">
+          {% if question.type == 'm' %}
+            <h2>Risposte</h2>
+            {% for answer in question.answers %}
+              <div class="answer-text {% if answer.is_right_answer %}right-answer{% else %}wrong-answer{% endif %}">
+              <!--<div
+                class="{% if question.accepts_multiple_answers %}div-checkbox{% else %}div-radio{% endif %} {% if answer.selected %}div-checked{% endif %}">.</div>-->
+                {% if answer.selected %}
+                <img src="data:image/png;base64,
+                iVBORw0KGgoAAAANSUhEUgAAABEAAAAQCAYAAADwMZRfAAAABHNCSVQICAgIfAhkiAAAABl0RVh0U29mdHdhcmUAZ25vbWUtc2NyZWVuc2hvdO8Dvz4AAAAndEVYdENyZWF0aW9uIFRpbWUAZG9tIDEzIGdpdSAyMDIxLCAxOToyNjozOATXFDsAAAD8SURBVDiNrZQhcwIxEIW/YxDggmwNNyARIJCIqEqKQwIKexYHprZIJLUY8Ij+AWZaBBowWA537hA7x9FeODIDUS/J7Ldv32TihGEY8uDKPAoAyEZisYHREn4P94vcAnw2oVWRvRON437A3rfvXnuFH0/0ZZx7AJWD737c/dqxdSbjJugyTNvJOyuI14BOXbSeWEJULta6JCEC9Gbm4BOQbh22AwnOLcC8I+dfK5iuzE6z/w+8Bqi8hLg7il4foDszA4xO9ESKVF7cnAJzDqkQP4hBEdQP0iGJca5Bumz3gi9OiioJWmxuF1ZfDJDx+9+LtFVUMHyL984zvoIzL8tIZK9qvJQAAAAASUVORK5CYII="
+                />
+                {% else %}
+                <img src="data:image/png;base64,
+                iVBORw0KGgoAAAANSUhEUgAAAA8AAAAPCAYAAAA71pVKAAAABHNCSVQICAgIfAhkiAAAABl0RVh0U29mdHdhcmUAZ25vbWUtc2NyZWVuc2hvdO8Dvz4AAAAndEVYdENyZWF0aW9uIFRpbWUAZG9tIDEzIGdpdSAyMDIxLCAxOToyNjo1M8VfajUAAACSSURBVCiRxZOxDQMhEASHk6Nrg3Yoge74DqCdb+PCXwcWDizb+seBJzqhHbFCXJIkFrnNYds2IoJ93z+Gc864O7XWx4EktdbUe9cZeu9qrUmSDCAiKKWcqlpKISIAMOBr1XfMvF2yXrBj8bEPCbOU1m5N6cfa/5VzzpekmTcAd2eMcUocY+DuAKS5GCt/+ymvcAeJMG3k0KoAswAAAABJRU5ErkJggg=="/>
+                {% endif %}
+              {{ answer.text }} 
+              <!--{% if answer.is_right_answer %}CORRETTA{%else%} SBAGLIATA {%endif%} - -->
+              </div>
+            {% endfor %}
+          {% else %}
+            <h2>Risposta dello studente</h2>
+            <div class="answer-text-open">
+                {{ question.answer_text }}
+            </div>
+          {% endif %}
+          </div>
+      </div>
+      <hr />
+      <pdf:nextpage />
+      {% endfor %}
+    </main>
+    {% endautoescape %}
+
   </body>
 </html>

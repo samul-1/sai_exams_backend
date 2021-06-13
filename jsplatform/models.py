@@ -21,7 +21,7 @@ from .exceptions import (
     OutOfCategories,
     SubmissionAlreadyTurnedIn,
 )
-from .pdf import render_to_pdf
+from .pdf import preprocess_html_for_pdf, render_to_pdf
 from .utils import run_code_in_vm
 
 
@@ -600,8 +600,77 @@ class ExamProgress(models.Model):
         Returns the user's seen questions/exercises and the given answers and submitted solutions as a dict
         that can be used to generate a pdf (it gets passed as context to the template that is rendered to pdf)
         """
-        # todo implement
-        return {}
+        ret = {
+            "user": self.user,
+            "exam": {
+                "name": self.exam.name,
+                "begin_timestamp": self.exam.begin_timestamp,
+            },
+            "questions": [],
+            "exercises": [],
+        }
+
+        exercises = self.exam.exercises.filter(
+            Q(
+                pk__in=self.completed_exercises.all().order_by(
+                    "examcompletedexercisesthroughmodel__ordering"
+                )
+            )
+            | Q(
+                pk=(
+                    self.current_exercise.pk if self.current_exercise is not None else 0
+                )
+            )
+        ).prefetch_related("testcases")
+
+        questions = (
+            self.exam.questions.filter(
+                Q(
+                    pk__in=self.completed_questions.all().order_by(
+                        "examcompletedquestionsthroughmodel__ordering"
+                    )
+                )
+                | Q(
+                    pk=(
+                        self.current_question.pk
+                        if self.current_question is not None
+                        else 0
+                    )
+                )
+            )
+            .prefetch_related("answers")
+            .prefetch_related("given_answers")
+        )
+
+        for question in questions:
+            given_answers = question.given_answers.filter(user=self.user)
+
+            q = {
+                "text": preprocess_html_for_pdf(question.text),
+                "type": question.question_type,
+                "accepts_multiple_answers": question.accepts_multiple_answers,
+            }
+            if question.question_type == "m":
+                q["answers"] = [
+                    {
+                        "text": preprocess_html_for_pdf(a.text),
+                        "is_right_answer": a.is_right_answer,
+                        "selected": a.pk
+                        in list(
+                            map(
+                                lambda g: g.answer.pk if g.answer is not None else 0,
+                                given_answers,
+                            )
+                        ),
+                    }
+                    for a in question.answers.all()
+                ]
+            else:
+                q["answer_text"] = (
+                    given_answers[0].text if given_answers.exists() else ""
+                )
+            ret["questions"].append(q)
+        return ret
 
     def generate_pdf(self):
         """
@@ -614,7 +683,7 @@ class ExamProgress(models.Model):
 
         # save pdf to disk and associate it to student's exam progress
         # todo handle cases of people with same full name
-        self.pdf_report.save(self.user.get_full_name(), pdf_binary)
+        self.pdf_report.save(self.user.get_full_name(), (pdf_binary))
 
     def move_to_next_type(self):
         """
