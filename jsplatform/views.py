@@ -211,7 +211,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()
         report, _ = ExamReport.objects.get_or_create(exam=exam)
         if not report.zip_report_archive:
-            report.generate_zip_report_archive()
+            report.generate_zip_archive()
         filename = report.zip_report_archive.name.split("/")[-1]
         return FileResponse(
             report.zip_report_archive, as_attachment=True, filename=filename
