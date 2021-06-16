@@ -385,8 +385,10 @@ class AnswerSerializer(serializers.ModelSerializer):
         super(AnswerSerializer, self).__init__(*args, **kwargs)
         self.fields["id"] = serializers.IntegerField(required=False)
         if self.context["request"].user.is_teacher:
-            # only show whether this is the right answer to teachers
+            # only show whether this is the right answer and how many times it
+            # was selected to teachers
             self.fields["is_right_answer"] = serializers.BooleanField()
+            self.fields["selections"] = serializers.IntegerField(read_only=True)
 
 
 class ExerciseSerializer(serializers.ModelSerializer):

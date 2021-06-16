@@ -110,19 +110,25 @@ class Exam(models.Model):
         total_items = self.get_number_of_items_per_exam()
         participants = self.participations.all().prefetch_related("user")
         participants_count = participants.count()
-
+        total_items_count = self.get_number_of_items_per_exam()
         progress_sum = 0
         completed_count = 0
 
         ret = {
             "participants_count": participants_count,
             "participants_progress": [],
+            "total_items_count": total_items_count,
         }
 
         for participant in participants:
-            perc_progress = participant.get_progress_percentage()
-            progress_sum += perc_progress
-            if perc_progress == 1:
+            # perc_progress = participant.get_progress_percentage()
+            participant_progress = (
+                participant.completed_items_count
+                if participant.completed_items_count is not None
+                else 0
+            )
+            progress_sum += participant_progress  # perc_progress
+            if participant_progress == total_items_count:
                 completed_count += 1
 
             ret["participants_progress"].append(
@@ -131,7 +137,7 @@ class Exam(models.Model):
                     "email": participant.user.email,
                     "full_name": participant.user.get_full_name(),
                     "course": participant.user.course,
-                    "progress": perc_progress,
+                    "progress": participant_progress,  # perc_progress,
                 }
             )
 
@@ -279,7 +285,7 @@ class ExamReport(models.Model):
         """
         Fills in the `headers` field with the appropriate headers for the report
         """
-        headers = ["Email", "Corso"]
+        headers = ["Corso", "Email"]
 
         exercise_count = self.exam.exercises.count()
         question_count = self.exam.questions.count()
