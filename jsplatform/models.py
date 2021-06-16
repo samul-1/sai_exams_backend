@@ -12,7 +12,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import models
-from django.db.models import JSONField, Q
+from django.db.models import F, JSONField, Q
 from django.utils import timezone
 from users.models import User
 
@@ -335,11 +335,7 @@ class ExamReport(models.Model):
             # get submission data for this participant for each exercise in the exam
             exerciseCount = 1
             for exercise in exercises.filter(
-                Q(
-                    pk__in=participant_state.completed_exercises.all().order_by(
-                        "examcompletedexercisesthroughmodel__ordering"
-                    )
-                )
+                Q(pk__in=participant_state.completed_exercises.all())
                 | Q(
                     pk=(
                         participant_state.current_exercise.pk
@@ -347,6 +343,8 @@ class ExamReport(models.Model):
                         else 0
                     )
                 )
+            ).order_by(
+                F("examcompletedexercisesthroughmodel__ordering").asc(nulls_last=True)
             ):
                 exercise_details = {
                     f"Esercizio JS { exerciseCount } testo": exercise.text
@@ -382,11 +380,7 @@ class ExamReport(models.Model):
             questionCount = 1
             # todo make sure that the current question gets put at the end of the queryset, if it's present
             for question in questions.filter(
-                Q(
-                    pk__in=participant_state.completed_questions.order_by(
-                        "examcompletedquestionsthroughmodel__ordering"
-                    ).all()
-                )
+                Q(pk__in=participant_state.completed_questions.all())
                 | Q(
                     pk=(
                         participant_state.current_question.pk
@@ -394,6 +388,8 @@ class ExamReport(models.Model):
                         else 0
                     )
                 )
+            ).order_by(
+                F("examcompletedquestionsthroughmodel__ordering").asc(nulls_last=True)
             ):
                 question_details = {
                     f"Domanda { questionCount } testo": question.text
@@ -655,26 +651,26 @@ class ExamProgress(models.Model):
             "exercises": [],
         }
 
-        exercises = self.exam.exercises.filter(
-            Q(
-                pk__in=self.completed_exercises.all().order_by(
-                    "examcompletedexercisesthroughmodel__ordering"
+        exercises = (
+            self.exam.exercises.filter(
+                Q(pk__in=self.completed_exercises.all())
+                | Q(
+                    pk=(
+                        self.current_exercise.pk
+                        if self.current_exercise is not None
+                        else 0
+                    )
                 )
             )
-            | Q(
-                pk=(
-                    self.current_exercise.pk if self.current_exercise is not None else 0
-                )
+            .order_by(
+                F("examcompletedexercisesthroughmodel__ordering").asc(nulls_last=True)
             )
-        ).prefetch_related("testcases")
+            .prefetch_related("testcases")
+        )
 
         questions = (
             self.exam.questions.filter(
-                Q(
-                    pk__in=self.completed_questions.all().order_by(
-                        "examcompletedquestionsthroughmodel__ordering"
-                    )
-                )
+                Q(pk__in=self.completed_questions.all())
                 | Q(
                     pk=(
                         self.current_question.pk
@@ -682,6 +678,9 @@ class ExamProgress(models.Model):
                         else 0
                     )
                 )
+            )
+            .order_by(
+                F("examcompletedquestionsthroughmodel__ordering").asc(nulls_last=True)
             )
             .prefetch_related("answers")
             .prefetch_related("given_answers")
