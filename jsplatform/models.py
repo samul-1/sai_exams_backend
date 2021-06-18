@@ -823,10 +823,10 @@ class ExamProgress(models.Model):
 
         item = self._get_item(type=self.currently_serving)
 
-        if self.completed_items_count is None:
-            self.completed_items_count = 0
-        else:
-            self.completed_items_count += 1
+        # if self.completed_items_count is None:
+        #     self.completed_items_count = 0
+        # else:
+        #     self.completed_items_count += 1
 
         # all items of the current type have been completed already; move onto the next type
         if item is None:
@@ -881,6 +881,11 @@ class ExamProgress(models.Model):
         if available_items.count() == 0:
             # user has completed all items of this type
             return None
+
+        if self.completed_items_count is None:
+            self.completed_items_count = 0
+        else:
+            self.completed_items_count += 1
 
         if self.current_category.randomize:
             available_items = available_items.order_by("?")
