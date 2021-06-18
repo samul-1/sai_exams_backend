@@ -796,7 +796,7 @@ class ExamProgress(models.Model):
 
         return (questions, exercises)
 
-    def get_next_item(self, force_next=False):
+    def get_next_item(self, force_next=False, increment_count=True):
         """
         If called with `force_next` set to False, returns the current item of current category
         If `force_next` is True, a new random item of current category is returned if there are any left;
@@ -823,15 +823,16 @@ class ExamProgress(models.Model):
 
         item = self._get_item(type=self.currently_serving)
 
-        # if self.completed_items_count is None:
-        #     self.completed_items_count = 0
-        # else:
-        #     self.completed_items_count += 1
+        if increment_count:
+            if self.completed_items_count is None:
+                self.completed_items_count = 0
+            else:
+                self.completed_items_count += 1
 
         # all items of the current type have been completed already; move onto the next type
         if item is None:
             self.move_to_next_type()
-            return self.get_next_item(force_next=force_next)
+            return self.get_next_item(force_next=force_next, increment_count=False)
 
         self.save()
         return item
@@ -881,11 +882,6 @@ class ExamProgress(models.Model):
         if available_items.count() == 0:
             # user has completed all items of this type
             return None
-
-        if self.completed_items_count is None:
-            self.completed_items_count = 0
-        else:
-            self.completed_items_count += 1
 
         if self.current_category.randomize:
             available_items = available_items.order_by("?")
