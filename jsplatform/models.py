@@ -823,15 +823,15 @@ class ExamProgress(models.Model):
 
         item = self._get_item(type=self.currently_serving)
 
-        # all items of the current type have been completed already; move onto the next type
-        if item is None:
-            self.move_to_next_type()
-            return self.get_next_item(force_next=force_next)
-
         if self.completed_items_count is None:
             self.completed_items_count = 0
         else:
             self.completed_items_count += 1
+
+        # all items of the current type have been completed already; move onto the next type
+        if item is None:
+            self.move_to_next_type()
+            return self.get_next_item(force_next=force_next)
 
         self.save()
         return item
