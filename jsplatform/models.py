@@ -512,6 +512,21 @@ class Question(models.Model):
             raise InvalidCategoryType
         super(Question, self).save(*args, **kwargs)
 
+    @property
+    def num_appearances(self):
+        print(
+            ExamProgress.objects.filter(
+                Q(completed_questions__in=[self]) | Q(current_question=self)
+            ).distinct()
+        )
+        return (
+            ExamProgress.objects.filter(
+                Q(completed_questions__in=[self]) | Q(current_question=self)
+            )
+            .distinct()  # ? why is this necessary? the ones with current_question=self are counted twice??
+            .count()
+        )
+
 
 class Exercise(models.Model):
     """
@@ -546,11 +561,22 @@ class Exercise(models.Model):
             raise InvalidCategoryType
         super(Exercise, self).save(*args, **kwargs)
 
+    # todo make this a property
     def public_testcases(self):
         """
         Returns all the *public* test cases for this question
         """
         return self.testcases.filter(is_public=True)
+
+    @property
+    def num_appearances(self):
+        return (
+            ExamProgress.objects.filter(
+                Q(completed_exercises__in=[self]) | Q(current_exercise=self)
+            )
+            .distinct()
+            .count()
+        )  # ? distinct
 
 
 class ExamProgress(models.Model):
@@ -1101,11 +1127,10 @@ class GivenAnswer(models.Model):
 
         creating = not self.pk  # see if the objects exists already or is being created
         super(GivenAnswer, self).save(*args, **kwargs)  # create the object
+        if creating and self.answer is not None:
+            # increment number of selections for selected answer
+            self.answer.selections += 1
+            self.answer.save()
         if creating and get_next_item:
-            if self.answer is not None:
-                # increment number of selections for selected answer
-                self.answer.selections += 1
-                self.answer.save()
-
             # get next exam item
             self.question.exam.get_item_for(self.user, force_next=True)

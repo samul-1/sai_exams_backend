@@ -308,7 +308,13 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Question
-        fields = ["id", "text", "question_type", "accepts_multiple_answers"]
+        fields = [
+            "id",
+            "text",
+            "question_type",
+            "accepts_multiple_answers",
+            "num_appearances",
+        ]
 
     def __init__(self, *args, **kwargs):
         super(QuestionSerializer, self).__init__(*args, **kwargs)
@@ -404,6 +410,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
             "text",
             "starting_code",
             "min_passing_testcases",
+            "num_appearances",
         ]
 
     def __init__(self, *args, **kwargs):

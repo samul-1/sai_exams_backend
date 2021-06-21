@@ -16,9 +16,10 @@ def preprocess_html_for_pdf(html):
     closed_p_tags = html.count("</p>")
     # XHTML2PDF doesn't handle paragraphs too well as it inserts whitespace that cannot be styled,
     # so we're replacing those with line breaks to keep everything nice-looking
-    ret = html.replace("</p>", "<br />", closed_p_tags - 1).replace("<p>", "")
 
+    ret = html.replace("</p>", "<br />", closed_p_tags - 1).replace("<p>", "")
     ret = re.sub(r"```([^`]*)```", r"<pre>\1</pre>", ret)
+    ret = re.sub(r"`([^`]*)`", r"<pre style='display: inline-block;'>\1</pre>", ret)
     # the frontend editor adds `<p><br></p>` after lines, so after replacing the </p> there will be
     # duplicate <br />'s. coalesce the duplicate consecutive br tags into a single one to obtain
     # a single line break

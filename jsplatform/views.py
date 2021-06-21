@@ -53,6 +53,9 @@ class QuestionViewSet(viewsets.ModelViewSet):
         """
         Restricts the queryset so users can only see their current question
         """
+        if self.request.user.is_teacher:
+            return super(QuestionViewSet, self).get_queryset()
+
         now = timezone.localtime(timezone.now())
 
         # get exams that are currently in progress
@@ -258,6 +261,9 @@ class ExerciseViewSet(viewsets.ModelViewSet):
         """
         Restricts the queryset so users can only see their current exercise
         """
+        if self.request.user.is_teacher:
+            return super(ExerciseViewSet, self).get_queryset()
+
         now = timezone.localtime(timezone.now())
 
         # get exams that are currently in progress
@@ -346,7 +352,7 @@ class GivenAnswerViewSet(viewsets.ModelViewSet):
                 user=request.user, question=question, answer=None
             )
             given_answer.save(get_next_item=False)
-
+        # todo transaction
         for answer_pk in answer_pks:
             answer = get_object_or_404(Answer, pk=answer_pk)
             given_answer = GivenAnswer(
