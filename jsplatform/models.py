@@ -83,7 +83,11 @@ class Exam(models.Model):
 
         action = "unlock" if self.locked_by is None else "lock"
 
-        message = {"id": self.pk, "type": "receive", "action": action}
+        message = {
+            "id": self.pk,
+            "type": "receive",
+            "action": action,
+        }
 
         if self.locked_by is not None:
             message["by"] = self.locked_by.get_full_name()
@@ -92,6 +96,7 @@ class Exam(models.Model):
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)("exam_list", message)
 
+    # todo make this a property
     def get_number_of_items_per_exam(self):
         """
         Returns the total number of items (questions + JS exercises) that will appear in
@@ -155,8 +160,6 @@ class Exam(models.Model):
         """
         progress = ExamProgress.objects.create(exam=self, user=user)
         mock = progress.simulate()
-        print("MOCK")
-        print(mock)
         progress.delete()
         return mock
 
@@ -504,6 +507,7 @@ class Question(models.Model):
         return self.text
 
     def save(self, *args, **kwargs):
+        # todo check that question belongs to a category that is from the same exam as the question
         if self.category is not None and self.category.item_type != "q":
             raise InvalidCategoryType
         super(Question, self).save(*args, **kwargs)
@@ -537,6 +541,7 @@ class Exercise(models.Model):
         return self.text
 
     def save(self, *args, **kwargs):
+        # todo check that the exercise belongs to a category from the same exam as the exercise
         if self.category is not None and self.category.item_type != "e":
             raise InvalidCategoryType
         super(Exercise, self).save(*args, **kwargs)
@@ -1041,8 +1046,7 @@ class Submission(models.Model):
             not self.is_eligible
             or self.exercise.submissions.filter(
                 user=self.user, has_been_turned_in=True
-            ).count()
-            > 0
+            ).exists()
         ):
             raise NotEligibleForTurningIn
 

@@ -18,6 +18,7 @@ from .models import (
 )
 
 
+# todo make ExamPreviewSerializer
 class ExamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exam
@@ -230,6 +231,7 @@ class ExamSerializer(serializers.ModelSerializer):
                 instance=self.context["exercise"],
                 context={"request": self.context["request"]},
             ).data
+            # todo use proper exception
         except Exception:
             return None
 
@@ -239,6 +241,7 @@ class ExamSerializer(serializers.ModelSerializer):
                 instance=self.context["question"],
                 context={"request": self.context["request"]},
             ).data
+            # todo use proper exception
         except Exception:
             return None
 
@@ -249,6 +252,7 @@ class ExamSerializer(serializers.ModelSerializer):
                 context={"request": self.context["request"]},
                 many=True,
             ).data
+            # todo use proper exception
         except Exception:
             return None
 
@@ -309,13 +313,14 @@ class QuestionSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super(QuestionSerializer, self).__init__(*args, **kwargs)
         self.fields["answers"] = AnswerSerializer(many=True, **kwargs)
+        # todo limit categories to those of the same exam as the question's
         self.fields["category"] = serializers.PrimaryKeyRelatedField(
             queryset=Category.objects.all(), required=False
         )
         # ! keep an eye on this
         self.fields["id"] = serializers.IntegerField(required=False)
         self.fields["introduction"] = serializers.SerializerMethodField()
-        # used to temporarily reference a newly created category
+        # used to temporarily reference a newly created category from the frontend
         self.fields["category_uuid"] = serializers.UUIDField(
             write_only=True, required=False
         )
@@ -327,6 +332,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
         # create objects for each answer
         for answer in answers:
+            # todo pass through AnswerSerializer
             Answer.objects.create(question=question, **answer)
 
         return question
@@ -343,10 +349,6 @@ class QuestionSerializer(serializers.ModelSerializer):
 
         # update each answer
         for answer_data in answers_data:
-            # answer, _ = Answer.objects.get_or_create(
-            #     pk=answer_data["id"], question=instance
-            # )
-
             if answer_data.get("id") is not None:  # try:
                 answer = Answer.objects.get(pk=answer_data["id"])
                 save_id = answer_data.pop("id")  # answer_data["id"]
@@ -354,8 +356,6 @@ class QuestionSerializer(serializers.ModelSerializer):
                 answer = Answer(question=instance)
                 answer.save()
                 save_id = answer.pk
-
-            # del answer_data["id"]  # get rid of frontend generated id
 
             serializer = AnswerSerializer(
                 answer, data=answer_data, context=self.context
@@ -409,7 +409,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super(ExerciseSerializer, self).__init__(*args, **kwargs)
 
-        # used to temporarily reference a newly created category
+        # used to temporarily reference a newly created category on the frontend
         self.fields["category_uuid"] = serializers.UUIDField(
             write_only=True, required=False
         )
@@ -435,6 +435,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
         # create TestCase objects for each test case
         for testcase in testcases:
+            # todo pass through TestCaseSerializer
             TestCase.objects.create(exercise=exercise, **testcase)
 
         return exercise
@@ -450,9 +451,6 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
         # update each test case
         for testcase_data in testcases_data:
-            # testcase, _ = TestCase.objects.get_or_create(
-            #     pk=testcase_data["id"], exercise=instance
-            # )
             if testcase_data.get("id") is not None:  # try:
                 testcase = TestCase.objects.get(pk=testcase_data["id"])
                 save_id = testcase_data.pop("id")  # testcase_data["id"]
@@ -460,8 +458,6 @@ class ExerciseSerializer(serializers.ModelSerializer):
                 testcase = TestCase(exercise=instance)
                 testcase.save()
                 save_id = testcase.pk
-
-            # del testcase_data["id"]  # get rid of frontend generated id
 
             serializer = TestCaseSerializer(
                 testcase, data=testcase_data, context=self.context
@@ -492,15 +488,6 @@ class SubmissionSerializer(serializers.ModelSerializer):
     details of the submission regarding the test cases
     """
 
-    def __init__(self, *args, **kwargs):
-        super(SubmissionSerializer, self).__init__(*args, **kwargs)
-
-        if self.context["request"].user.is_teacher:
-            self.fields["details"] = serializers.JSONField(read_only=True)
-        else:
-            # only show public test case details to non-staff users
-            self.fields["public_details"] = serializers.JSONField(read_only=True)
-
     class Meta:
         model = Submission
         fields = [
@@ -512,6 +499,15 @@ class SubmissionSerializer(serializers.ModelSerializer):
             "has_been_turned_in",
         ]
         read_only_fields = ["is_eligible", "user", "has_been_turned_in"]
+
+    def __init__(self, *args, **kwargs):
+        super(SubmissionSerializer, self).__init__(*args, **kwargs)
+
+        if self.context["request"].user.is_teacher:
+            self.fields["details"] = serializers.JSONField(read_only=True)
+        else:
+            # only show public test case details to non-staff users
+            self.fields["public_details"] = serializers.JSONField(read_only=True)
 
     def create(self, validated_data):
         submission = Submission.objects.create(**validated_data)

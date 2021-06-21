@@ -4,6 +4,8 @@ import re
 from django.core.files.base import ContentFile
 from django.template import Context
 from django.template.loader import get_template
+from weasyprint import HTML
+from weasyprint.fonts import FontConfiguration
 from xhtml2pdf import pisa
 
 
@@ -12,9 +14,15 @@ def preprocess_html_for_pdf(html):
     Accommodates XHTML2PDF restrictions by replacing ``` with <pre> tags and <p></p> with <br />
     """
     closed_p_tags = html.count("</p>")
-    ret = html.replace("</p>", "", closed_p_tags - 1).replace("<p>", "")
+    # XHTML2PDF doesn't handle paragraphs too well as it inserts whitespace that cannot be styled,
+    # so we're replacing those with line breaks to keep everything nice-looking
+    ret = html.replace("</p>", "<br />", closed_p_tags - 1).replace("<p>", "")
 
     ret = re.sub(r"```([^`]*)```", r"<pre>\1</pre>", ret)
+    # the frontend editor adds `<p><br></p>` after lines, so after replacing the </p> there will be
+    # duplicate <br />'s. coalesce the duplicate consecutive br tags into a single one to obtain
+    # a single line break
+    ret = re.sub(r"(<br\s*/?>)+", "<br />", ret)
 
     return ret
 
@@ -31,8 +39,10 @@ def render_to_pdf(template_src, context_dict):
     print(html)
     # if not pdf.err:
     #     return result.getvalue()
-    pdf = ContentFile(b"")
-    pisa_status = pisa.CreatePDF(html, dest=pdf)
-    return pdf
 
-    return "error"
+    font_config = FontConfiguration()
+    pdf_bin = HTML(string=html).write_pdf(font_config=font_config)
+    pdf = ContentFile(pdf_bin)
+    # pisa_status = pisa.CreatePDF(html, dest=pdf)
+
+    return pdf
