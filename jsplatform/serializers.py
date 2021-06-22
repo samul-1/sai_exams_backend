@@ -47,6 +47,7 @@ class ExamSerializer(serializers.ModelSerializer):
             )
             self.fields["closed"] = serializers.BooleanField(required=False)
             self.fields["locked_by"] = serializers.SerializerMethodField()
+            self.fields["closed_at"] = serializers.DateTimeField()
         else:
             # if requesting user isn't a teacher, show only the exercise/question that's
             # currently assigned to them

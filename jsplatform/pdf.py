@@ -10,16 +10,12 @@ from weasyprint.fonts import FontConfiguration
 
 from .tex import tex_to_svg
 
-# from xhtml2pdf import pisa
-
 
 def preprocess_html_for_pdf(html):
     """
-    Accommodates XHTML2PDF restrictions by replacing ``` with <pre> tags and <p></p> with <br />
+    Replaces ``` with <pre> tags and <p></p> with <br />
     """
     closed_p_tags = html.count("</p>")
-    # XHTML2PDF doesn't handle paragraphs too well as it inserts whitespace that cannot be styled,
-    # so we're replacing those with line breaks to keep everything nice-looking
 
     ret = html.replace("</p>", "<br />", closed_p_tags - 1).replace("<p>", "")
     ret = re.sub(r"```([^`]*)```", r"<pre>\1</pre>", ret)
