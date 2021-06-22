@@ -1,11 +1,14 @@
 import io
 import re
+import subprocess
 
 from django.core.files.base import ContentFile
 from django.template import Context
 from django.template.loader import get_template
 from weasyprint import HTML
 from weasyprint.fonts import FontConfiguration
+
+from .tex import tex_to_svg
 
 # from xhtml2pdf import pisa
 
@@ -33,8 +36,7 @@ def render_to_pdf(template_src, context_dict):
     template = get_template(template_src)
     context = context_dict
 
-    html = template.render(context)
-    result = io.BytesIO()
+    html = tex_to_svg(template.render(context))
 
     print(html)
 

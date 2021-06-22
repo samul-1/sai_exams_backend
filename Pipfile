@@ -32,6 +32,7 @@ html5lib = "*"
 pyPdf = "*"
 weasyprint = "*"
 django-extensions = "*"
+cairosvg = "*"
 
 [dev-packages]
 

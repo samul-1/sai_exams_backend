@@ -17,6 +17,9 @@
   },
   "homepage": "https://github.com/samul-1/js-exercise-platform#readme",
   "dependencies": {
-    "vm2": "^3.9.3"
+    "vm2": "^3.9.3",
+    "esm": "^3.2.25",
+    "mathjax-full": "^3.1.0",
+    "yargs": "^15.4.0"
   }
 }
