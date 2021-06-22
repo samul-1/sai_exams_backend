@@ -75,6 +75,9 @@ class Exam(models.Model):
         related_name="exams_referred_by",
     )
 
+    class Meta:
+        ordering = ["pk"]
+
     def __str__(self):
         return self.name
 
@@ -215,6 +218,7 @@ class Category(models.Model):
 
     class Meta:
         verbose_name_plural = "categories"
+        ordering = ["pk"]
 
     def __str__(self):
         return self.name
@@ -503,6 +507,9 @@ class Question(models.Model):
     updated = models.DateTimeField(auto_now=True)
     accepts_multiple_answers = models.BooleanField(default=False)
 
+    class Meta:
+        ordering = ["pk"]
+
     def __str__(self):
         return self.text
 
@@ -526,6 +533,14 @@ class Question(models.Model):
             .distinct()  # ? why is this necessary? the ones with current_question=self are counted twice??
             .count()
         )
+
+    @property
+    def introduction_text(self):
+        """
+        If the question belongs to an "aggregated question" category, returns the introduction text
+        of that category
+        """
+        return self.category.introduction_text
 
 
 class Exercise(models.Model):
@@ -551,6 +566,9 @@ class Exercise(models.Model):
     creator = models.ForeignKey(
         User, null=True, blank=True, on_delete=models.SET_NULL, related_name="exercises"
     )
+
+    class Meta:
+        ordering = ["pk"]
 
     def __str__(self):
         return self.text
@@ -723,7 +741,8 @@ class ExamProgress(models.Model):
             q = {
                 "text": preprocess_html_for_pdf(question.text),
                 "type": question.question_type,
-                "accepts_multiple_answers": question.accepts_multiple_answers,
+                "introduction_text": preprocess_html_for_pdf(question.introduction_text)
+                # "accepts_multiple_answers": question.accepts_multiple_answers,
             }
             if question.question_type == "m":
                 q["answers"] = [
@@ -821,7 +840,22 @@ class ExamProgress(models.Model):
 
         while (item := self.get_next_item(force_next=True)) is not None:
             if isinstance(item, Question):
-                questions.append(item)
+                questions.append(
+                    {
+                        "text": preprocess_html_for_pdf(item.text),
+                        "introduction_text": preprocess_html_for_pdf(
+                            item.introduction_text
+                        ),
+                        "type": item.question_type,
+                        "answers": [
+                            {
+                                "text": preprocess_html_for_pdf(a.text),
+                                "is_right_answer": a.is_right_answer,
+                            }
+                            for a in item.answers.all()
+                        ],
+                    }
+                )
             else:
                 exercises.append(item)
 

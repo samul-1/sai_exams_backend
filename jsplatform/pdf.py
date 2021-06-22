@@ -6,7 +6,8 @@ from django.template import Context
 from django.template.loader import get_template
 from weasyprint import HTML
 from weasyprint.fonts import FontConfiguration
-from xhtml2pdf import pisa
+
+# from xhtml2pdf import pisa
 
 
 def preprocess_html_for_pdf(html):
@@ -35,15 +36,10 @@ def render_to_pdf(template_src, context_dict):
     html = template.render(context)
     result = io.BytesIO()
 
-    # print(html)
-    # pdf = pisa.pisaDocument(io.BytesIO(html.encode("ISO-8859-1")), result)
     print(html)
-    # if not pdf.err:
-    #     return result.getvalue()
 
     font_config = FontConfiguration()
     pdf_bin = HTML(string=html).write_pdf(font_config=font_config)
     pdf = ContentFile(pdf_bin)
-    # pisa_status = pisa.CreatePDF(html, dest=pdf)
 
     return pdf

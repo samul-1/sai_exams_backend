@@ -25,6 +25,7 @@ from .models import (
     TestCase,
     User,
 )
+from .pdf import render_to_pdf
 from .permissions import IsTeacherOrReadOnly, TeachersOnly
 from .renderers import ReportRenderer
 from .serializers import (
@@ -107,27 +108,42 @@ class ExamViewSet(viewsets.ModelViewSet):
         Returns a mock exam representing a simulation of the requested exam, showing a possible combination of questions
         that could be picked according to the exam settings.
         """
-        # ? use self.get_object()
-        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))
+        # todo make a constants.py file for stuff like this
+        template_name = "exam_pdf_report.html"
+
+        exam = self.get_object()  # get_object_or_404(Exam, pk=kwargs.pop("pk"))
         questions, exercises = exam.get_mock_exam(user=request.user)
 
-        context = {
-            "request": request,
-        }
+        mock_pdf = render_to_pdf(
+            template_name,
+            {
+                "exam": {
+                    "name": exam.name,
+                    "begin_timestamp": exam.begin_timestamp,
+                },
+                "questions": questions,
+                "exercises": exercises,
+            },
+        )
 
-        exercises_data = ExerciseSerializer(
-            exercises, many=True, context=context, **kwargs
-        )
-        questions_data = QuestionSerializer(
-            questions, many=True, context=context, **kwargs
-        )
+        return FileResponse(mock_pdf, as_attachment=True, filename=exam.name)
+        # context = {
+        #     "request": request,
+        # }
 
-        return Response(
-            data={
-                "questions": questions_data.data,
-                "exercises": exercises_data.data,
-            }
-        )
+        # exercises_data = ExerciseSerializer(
+        #     exercises, many=True, context=context, **kwargs
+        # )
+        # questions_data = QuestionSerializer(
+        #     questions, many=True, context=context, **kwargs
+        # )
+
+        # return Response(
+        #     data={
+        #         "questions": questions_data.data,
+        #         "exercises": exercises_data.data,
+        #     }
+        # )
 
     @action(detail=True, methods=["get"])
     def progress_info(self, request, **kwargs):

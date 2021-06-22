@@ -29,8 +29,9 @@ channels = "*"
 reportlab = "*"
 xhtml2pdf = "*"
 html5lib = "*"
-pypdf = "*"
+pyPdf = "*"
 weasyprint = "*"
+django-extensions = "*"
 
 [dev-packages]
 
