@@ -185,6 +185,17 @@ class Exam(models.Model):
         item = progress.get_next_item(force_next=(created or force_next))
         return item
 
+    def get_all_items(self):
+        questions = []
+        exercises = []
+
+        for question in self.questions.all():
+            questions.append(question.format_for_pdf())
+
+        # todo process exercises
+
+        return (questions, exercises)
+
 
 class Category(models.Model):
     EXAM_ITEMS = (
@@ -554,6 +565,20 @@ class Question(models.Model):
         """
         return self.category.rendered_introduction_text
 
+    def format_for_pdf(self):
+        return {
+            "text": preprocess_html_for_pdf(self.rendered_text),
+            "introduction_text": preprocess_html_for_pdf(self.introduction_text),
+            "type": self.question_type,
+            "answers": [
+                {
+                    "text": preprocess_html_for_pdf(a.rendered_text),
+                    "is_right_answer": a.is_right_answer,
+                }
+                for a in self.answers.all()
+            ],
+        }
+
 
 class Exercise(models.Model):
     """
@@ -860,22 +885,7 @@ class ExamProgress(models.Model):
 
         while (item := self.get_next_item(force_next=True)) is not None:
             if isinstance(item, Question):
-                questions.append(
-                    {
-                        "text": preprocess_html_for_pdf(item.rendered_text),
-                        "introduction_text": preprocess_html_for_pdf(
-                            item.introduction_text
-                        ),
-                        "type": item.question_type,
-                        "answers": [
-                            {
-                                "text": preprocess_html_for_pdf(a.rendered_text),
-                                "is_right_answer": a.is_right_answer,
-                            }
-                            for a in item.answers.all()
-                        ],
-                    }
-                )
+                questions.append(item.format_for_pdf())
             else:
                 exercises.append(item)
 

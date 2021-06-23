@@ -127,23 +127,28 @@ class ExamViewSet(viewsets.ModelViewSet):
         )
 
         return FileResponse(mock_pdf, as_attachment=True, filename=exam.name)
-        # context = {
-        #     "request": request,
-        # }
 
-        # exercises_data = ExerciseSerializer(
-        #     exercises, many=True, context=context, **kwargs
-        # )
-        # questions_data = QuestionSerializer(
-        #     questions, many=True, context=context, **kwargs
-        # )
+    @action(detail=True, methods=["post"])
+    def all_items(self, request, **kwargs):
+        # todo make a constants.py file for stuff like this
+        template_name = "exam_pdf_report.html"
 
-        # return Response(
-        #     data={
-        #         "questions": questions_data.data,
-        #         "exercises": exercises_data.data,
-        #     }
-        # )
+        exam = self.get_object()
+        questions, exercises = exam.get_all_items()
+
+        all_items_pdf = render_to_pdf(
+            template_name,
+            {
+                "exam": {
+                    "name": exam.name,
+                    "begin_timestamp": exam.begin_timestamp,
+                },
+                "questions": questions,
+                "exercises": exercises,
+            },
+        )
+
+        return FileResponse(all_items_pdf, as_attachment=True, filename=exam.name)
 
     @action(detail=True, methods=["get"])
     def progress_info(self, request, **kwargs):
