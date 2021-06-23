@@ -28,13 +28,16 @@ def preprocess_html_for_pdf(html):
     return ret
 
 
-def render_to_pdf(template_src, context_dict):
+def render_to_pdf(template_src, context_dict, render_tex=False):
     template = get_template(template_src)
     context = context_dict
 
-    html = tex_to_svg(template.render(context))
+    html = template.render(context)
 
-    print(html)
+    if render_tex:
+        html = tex_to_svg(html)
+
+    # print(html)
 
     font_config = FontConfiguration()
     pdf_bin = HTML(string=html).write_pdf(font_config=font_config)

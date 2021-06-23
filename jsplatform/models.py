@@ -25,6 +25,7 @@ from .exceptions import (
     SubmissionAlreadyTurnedIn,
 )
 from .pdf import preprocess_html_for_pdf, render_to_pdf
+from .tex import tex_to_svg
 from .utils import run_code_in_vm
 
 
@@ -209,6 +210,7 @@ class Category(models.Model):
     # if the category is an aggregated question, this field holds the introductory text
     # that is shown together with the questions that make up this category
     introduction_text = models.TextField(blank=True, null=True)
+    rendered_introduction_text = models.TextField(blank=True, null=True, default="")
 
     randomize = models.BooleanField(default=True)
 
@@ -222,6 +224,12 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, render_tex=True, *args, **kwargs):
+        super(Category, self).save(*args, **kwargs)
+        if render_tex:
+            self.rendered_introduction_text = tex_to_svg(self.introduction_text)
+            self.save(render_tex=False)
 
 
 class ExamReport(models.Model):
@@ -492,6 +500,7 @@ class Question(models.Model):
     )
 
     text = models.TextField()
+    rendered_text = models.TextField(null=True, blank=True, default="")
     category = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
@@ -513,11 +522,14 @@ class Question(models.Model):
     def __str__(self):
         return self.text
 
-    def save(self, *args, **kwargs):
+    def save(self, render_tex=True, *args, **kwargs):
         # todo check that question belongs to a category that is from the same exam as the question
         if self.category is not None and self.category.item_type != "q":
             raise InvalidCategoryType
         super(Question, self).save(*args, **kwargs)
+        if render_tex:
+            self.rendered_text = tex_to_svg(self.text)
+            self.save(render_tex=False)
 
     @property
     def num_appearances(self):
@@ -540,7 +552,7 @@ class Question(models.Model):
         If the question belongs to an "aggregated question" category, returns the introduction text
         of that category
         """
-        return self.category.introduction_text
+        return self.category.rendered_introduction_text
 
 
 class Exercise(models.Model):
@@ -559,6 +571,7 @@ class Exercise(models.Model):
         related_name="exercises",
     )
     text = models.TextField()
+    rendered_text = models.TextField(null=True, blank=True, default="")
     starting_code = models.TextField(blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
@@ -573,11 +586,14 @@ class Exercise(models.Model):
     def __str__(self):
         return self.text
 
-    def save(self, *args, **kwargs):
+    def save(self, render_tex=True, *args, **kwargs):
         # todo check that the exercise belongs to a category from the same exam as the exercise
         if self.category is not None and self.category.item_type != "e":
             raise InvalidCategoryType
         super(Exercise, self).save(*args, **kwargs)
+        if render_tex:
+            self.rendered_text = tex_to_svg(self.text)
+            self.save(render_tex=False)
 
     # todo make this a property
     def public_testcases(self):
@@ -711,6 +727,7 @@ class ExamProgress(models.Model):
                     )
                 )
             )
+            .distinct()
             .order_by(
                 F("examcompletedexercisesthroughmodel__ordering").asc(nulls_last=True)
             )
@@ -731,15 +748,18 @@ class ExamProgress(models.Model):
             .order_by(
                 F("examcompletedquestionsthroughmodel__ordering").asc(nulls_last=True)
             )
+            .distinct()
             .prefetch_related("answers")
             .prefetch_related("given_answers")
         )
+
+        print(questions)
 
         for question in questions:
             given_answers = question.given_answers.filter(user=self.user)
 
             q = {
-                "text": preprocess_html_for_pdf(question.text),
+                "text": preprocess_html_for_pdf(question.rendered_text),
                 "type": question.question_type,
                 "introduction_text": preprocess_html_for_pdf(question.introduction_text)
                 # "accepts_multiple_answers": question.accepts_multiple_answers,
@@ -747,7 +767,7 @@ class ExamProgress(models.Model):
             if question.question_type == "m":
                 q["answers"] = [
                     {
-                        "text": preprocess_html_for_pdf(a.text),
+                        "text": preprocess_html_for_pdf(a.rendered_text),
                         "is_right_answer": a.is_right_answer,
                         "selected": a.pk
                         in list(
@@ -842,14 +862,14 @@ class ExamProgress(models.Model):
             if isinstance(item, Question):
                 questions.append(
                     {
-                        "text": preprocess_html_for_pdf(item.text),
+                        "text": preprocess_html_for_pdf(item.rendered_text),
                         "introduction_text": preprocess_html_for_pdf(
                             item.introduction_text
                         ),
                         "type": item.question_type,
                         "answers": [
                             {
-                                "text": preprocess_html_for_pdf(a.text),
+                                "text": preprocess_html_for_pdf(a.rendered_text),
                                 "is_right_answer": a.is_right_answer,
                             }
                             for a in item.answers.all()
@@ -870,7 +890,8 @@ class ExamProgress(models.Model):
         """
         if self.currently_serving == "c":
             # exam was completed
-            self.generate_pdf()
+            # todo make this async
+            # self.generate_pdf()
             return None
 
         if not force_next:
@@ -1126,6 +1147,7 @@ class Answer(models.Model):
         Question, on_delete=models.CASCADE, related_name="answers"
     )
     text = models.TextField()
+    rendered_text = models.TextField(null=True, blank=True, default="")
     is_right_answer = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
@@ -1133,6 +1155,12 @@ class Answer(models.Model):
 
     def __str__(self):
         return self.text
+
+    def save(self, render_tex=True, *args, **kwargs):
+        super(Answer, self).save(*args, **kwargs)
+        if render_tex:
+            self.rendered_text = tex_to_svg(self.text)
+            self.save(render_tex=False)
 
 
 class GivenAnswer(models.Model):

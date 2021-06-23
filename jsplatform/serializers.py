@@ -46,8 +46,8 @@ class ExamSerializer(serializers.ModelSerializer):
                 queryset=User.objects.filter(is_teacher=True),
             )
             self.fields["closed"] = serializers.BooleanField(required=False)
-            self.fields["locked_by"] = serializers.SerializerMethodField()
-            self.fields["closed_at"] = serializers.DateTimeField()
+            self.fields["locked_by"] = serializers.SerializerMethodField(read_only=True)
+            self.fields["closed_at"] = serializers.DateTimeField(read_only=True)
         else:
             # if requesting user isn't a teacher, show only the exercise/question that's
             # currently assigned to them
@@ -282,6 +282,11 @@ class CategorySerializer(serializers.ModelSerializer):
             format="hex_verbose", write_only=True, required=False
         )
 
+        if not self.context["request"].user.is_teacher:
+            self.fields["introduction_text"] = serializers.CharField(
+                source="rendered_introduction_text"
+            )
+
 
 class TestCaseSerializer(serializers.ModelSerializer):
     """
@@ -320,6 +325,7 @@ class QuestionSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super(QuestionSerializer, self).__init__(*args, **kwargs)
         self.fields["answers"] = AnswerSerializer(many=True, **kwargs)
+        # self.fields["text"] = serializers.SerializerMethodField()
         # todo limit categories to those of the same exam as the question's
         self.fields["category"] = serializers.PrimaryKeyRelatedField(
             queryset=Category.objects.all(), required=False
@@ -330,6 +336,14 @@ class QuestionSerializer(serializers.ModelSerializer):
         # used to temporarily reference a newly created category from the frontend
         self.fields["category_uuid"] = serializers.UUIDField(
             write_only=True, required=False
+        )
+
+        if not self.context["request"].user.is_teacher:
+            self.fields["text"] = serializers.CharField(source="rendered_text")
+
+    def get_text(self, obj):
+        return (
+            obj.text if self.context["request"].user.is_teacher else obj.rendered_text
         )
 
     def create(self, validated_data):
@@ -396,6 +410,9 @@ class AnswerSerializer(serializers.ModelSerializer):
             # was selected to teachers
             self.fields["is_right_answer"] = serializers.BooleanField()
             self.fields["selections"] = serializers.IntegerField(read_only=True)
+        else:
+            # hide source text to non-teacher users and show rendered text instead
+            self.fields["text"] = serializers.CharField(source="rendered_text")
 
 
 class ExerciseSerializer(serializers.ModelSerializer):
@@ -435,6 +452,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
             self.fields["public_testcases"] = TestCaseSerializer(
                 many=True, read_only=True
             )
+            self.fields["text"] = serializers.CharField(source="rendered_text")
 
     def create(self, validated_data):
         testcases = validated_data.pop("testcases")

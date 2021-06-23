@@ -40,6 +40,9 @@ def svg2img(html: str) -> str:
 # returns the original text unchanged if no $ tags are found, otherwise returns the original text
 # where all the TeX formulas have been converted to svg and substituted with the svg code
 def tex_to_svg(formula):
+    if formula is None:
+        return ""
+
     output_str = ""
 
     # tokenize the string splitting when you encounter $ tags
