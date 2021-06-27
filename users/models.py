@@ -18,6 +18,6 @@ class User(AbstractUser):
             self.is_teacher = True
             self.save()
 
-    # todo turn this into a property
-    def get_full_name(self):
+    @property
+    def full_name(self):
         return self.first_name.capitalize() + " " + self.last_name.capitalize()

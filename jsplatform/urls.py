@@ -10,6 +10,8 @@ router = routers.SimpleRouter()
 router.register(r"exercises", views.ExerciseViewSet)
 router.register(r"exams", views.ExamViewSet)
 router.register(r"questions", views.QuestionViewSet)
+router.register(r"frontend_errors", views.FrontendErrorViewSet)
+
 router.register(
     r"given_answers", views.GivenAnswerViewSet
 )  # used for posting multiple answers to multiple questions at once

@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import APIView
@@ -19,6 +19,7 @@ from .models import (
     ExamProgress,
     ExamReport,
     Exercise,
+    FrontendError,
     GivenAnswer,
     Question,
     Submission,
@@ -31,11 +32,25 @@ from .renderers import ReportRenderer
 from .serializers import (
     ExamSerializer,
     ExerciseSerializer,
+    FrontendErrorSerializer,
     GivenAnswerSerializer,
     QuestionSerializer,
     SubmissionSerializer,
     TestCaseSerializer,
 )
+
+
+class FrontendErrorViewSet(viewsets.ModelViewSet):
+    serializer_class = FrontendErrorSerializer
+    queryset = FrontendError.objects.all()
+    permission_classes = [AllowAny]
+    # todo add permissions to prevent users from accessing the errors
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_anonymous:
+            serializer.save(user=self.request.user)
+        else:
+            serializer.save()
 
 
 class QuestionViewSet(viewsets.ModelViewSet):

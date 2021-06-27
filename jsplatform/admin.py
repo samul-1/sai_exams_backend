@@ -7,12 +7,18 @@ from .models import (
     ExamProgress,
     ExamReport,
     Exercise,
+    FrontendError,
     GivenAnswer,
     Question,
     Submission,
     TestCase,
     User,
 )
+
+
+@admin.register(FrontendError)
+class FrontendErrorAdmin(admin.ModelAdmin):
+    pass
 
 
 @admin.register(User)

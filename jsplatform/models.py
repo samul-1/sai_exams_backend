@@ -33,6 +33,18 @@ def get_pdf_upload_path(instance, filename):
     return "exam_reports/{0}/{1}".format(instance.exam.pk, filename)
 
 
+class FrontendError(models.Model):
+    """
+    Errors occurring on the frontend are logged to the backend using this model
+    """
+
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    error_details = models.JSONField(null=True, blank=True)
+    component_data = models.JSONField(null=True, blank=True)
+    additional_info = models.TextField(null=True, blank=True)
+
+
 class Exam(models.Model):
     """
     An exam, represented by a name and a begin/end datetime
@@ -94,7 +106,7 @@ class Exam(models.Model):
         }
 
         if self.locked_by is not None:
-            message["by"] = self.locked_by.get_full_name()
+            message["by"] = self.locked_by.full_name
 
         # send update to exam list consumer about exam's locked status
         channel_layer = get_channel_layer()
@@ -116,7 +128,7 @@ class Exam(models.Model):
         Returns a dict detailing the current number of participants to the exam and their
         current progress in terms of how many items they've completed
         """
-        total_items = self.get_number_of_items_per_exam()
+        # total_items = self.get_number_of_items_per_exam()
         participants = self.participations.all().prefetch_related("user")
         participants_count = participants.count()
         total_items_count = self.get_number_of_items_per_exam()
@@ -144,7 +156,7 @@ class Exam(models.Model):
                 {
                     "id": participant.user.pk,
                     "email": participant.user.email,
-                    "full_name": participant.user.get_full_name(),
+                    "full_name": participant.user.full_name,
                     "course": participant.user.course,
                     "progress": participant_progress,  # perc_progress,
                 }
@@ -158,6 +170,7 @@ class Exam(models.Model):
         ret["completed_count"] = completed_count
         return ret
 
+    # ? put this in a logic.py module?
     def get_mock_exam(self, user):
         """
         Returns a read-only mock exam
@@ -167,6 +180,7 @@ class Exam(models.Model):
         progress.delete()
         return mock
 
+    # ? possibly needs refactoring
     def get_item_for(self, user, force_next=False):
         """
         If called for the first time: creates an ExamProgress object for user and returns a random item for them
@@ -189,7 +203,7 @@ class Exam(models.Model):
         questions = []
         exercises = []
 
-        for question in self.questions.all():
+        for question in self.questions.order_by("category__pk", "pk"):
             questions.append(question.format_for_pdf())
 
         # todo process exercises
@@ -242,12 +256,39 @@ class Category(models.Model):
             self.rendered_introduction_text = tex_to_svg(self.introduction_text)
             self.save(render_tex=False)
 
+    @property
+    def error_rate(self):
+        #! implement
+        """
+        per ogni categoria:
+        - percentuale di errore (numero di domande sbagliate / numero di domande apparse
+        per quella categoria ovvero category.amount * num_participants)
+        """
+        # todo do the same for exercises
+        questions = (
+            self.questions.all()
+            .prefetch_related("answers")
+            .prefetch_related("given_answers")
+        )
+        completed_participant_count = self.exam.participations.filter(
+            exhaused_categories__in=[self]
+        ).count()
+
+        # number of items of this category that have been seen by a student
+        shown_items = completed_participant_count * self.amount
+
+        current_participants = self.exam.participations.filter(current_category=self)
+        for p in current_participants:
+            shown_items += p.served_for_current_category
+
 
 class ExamReport(models.Model):
     """
     A report generated at the end of an exam detailing the submissions and answers
     given by the students
     """
+
+    # todo refactor the csv stuff and possibly move the generation methods in a separate module
 
     exam = models.OneToOneField(Exam, null=True, on_delete=models.SET_NULL)
     details = models.JSONField(null=True, blank=True)
@@ -404,7 +445,6 @@ class ExamReport(models.Model):
 
             # get submission data for this participant for each question in the exam
             questionCount = 1
-            # todo make sure that the current question gets put at the end of the queryset, if it's present
             for question in questions.filter(
                 Q(pk__in=participant_state.completed_questions.all())
                 | Q(
@@ -544,11 +584,6 @@ class Question(models.Model):
 
     @property
     def num_appearances(self):
-        print(
-            ExamProgress.objects.filter(
-                Q(completed_questions__in=[self]) | Q(current_question=self)
-            ).distinct()
-        )
         return (
             ExamProgress.objects.filter(
                 Q(completed_questions__in=[self]) | Q(current_question=self)
@@ -565,6 +600,7 @@ class Question(models.Model):
         """
         return self.category.rendered_introduction_text
 
+    # ? probably better in a separate module
     def format_for_pdf(self):
         return {
             "text": preprocess_html_for_pdf(self.rendered_text),
@@ -714,6 +750,7 @@ class ExamProgress(models.Model):
         blank=True,
     )
 
+    # todo better naming and make this a property
     def get_progress_percentage(self):
         """
         Return a float with two decimal digits representing the percentage of completion of the
@@ -811,6 +848,7 @@ class ExamProgress(models.Model):
             ret["questions"].append(q)
         return ret
 
+    # todo move this to a separate module
     def generate_pdf(self):
         """
         Generate a pdf file containing the seen questions/exercises from this user and the given answers
@@ -822,7 +860,7 @@ class ExamProgress(models.Model):
 
         # save pdf to disk and associate it to student's exam progress
         # todo handle cases of people with same full name
-        self.pdf_report.save("%s.pdf" % self.user.get_full_name(), (pdf_binary))
+        self.pdf_report.save("%s.pdf" % self.user.full_name, (pdf_binary))
 
     def move_to_next_type(self):
         """
@@ -875,6 +913,7 @@ class ExamProgress(models.Model):
         self.current_category = random_category
         self.save()
 
+    # ? put this in a logic.py module?
     def simulate(self):
         """
         Returns a mock exam in the form of a list of questions and one of exercises, representing
@@ -887,7 +926,7 @@ class ExamProgress(models.Model):
             if isinstance(item, Question):
                 questions.append(item.format_for_pdf())
             else:
-                exercises.append(item)
+                exercises.append(item)  # todo format_for_pdf
 
         return (questions, exercises)
 
@@ -900,7 +939,6 @@ class ExamProgress(models.Model):
         """
         if self.currently_serving == "c":
             # exam was completed
-            # todo make this async
             # self.generate_pdf()
             return None
 
@@ -1099,6 +1137,7 @@ class Submission(models.Model):
             # from creating and endless loop
             self.eval_submission()
 
+    # todo move this to a separate module
     def eval_submission(self):
         # submission has already been confirmed
         if self.has_been_turned_in:

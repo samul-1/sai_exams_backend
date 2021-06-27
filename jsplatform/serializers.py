@@ -11,11 +11,18 @@ from .models import (
     Category,
     Exam,
     Exercise,
+    FrontendError,
     GivenAnswer,
     Question,
     Submission,
     TestCase,
 )
+
+
+class FrontendErrorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FrontendError
+        fields = "__all__"
 
 
 # todo make ExamPreviewSerializer
@@ -258,7 +265,7 @@ class ExamSerializer(serializers.ModelSerializer):
             return None
 
     def get_locked_by(self, obj):
-        return obj.locked_by.get_full_name() if obj.locked_by is not None else None
+        return obj.locked_by.full_name if obj.locked_by is not None else None
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -353,7 +360,6 @@ class QuestionSerializer(serializers.ModelSerializer):
 
         # create objects for each answer
         for answer in answers:
-            # todo pass through AnswerSerializer
             Answer.objects.create(question=question, **answer)
 
         return question
@@ -461,7 +467,6 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
         # create TestCase objects for each test case
         for testcase in testcases:
-            # todo pass through TestCaseSerializer
             TestCase.objects.create(exercise=exercise, **testcase)
 
         return exercise
