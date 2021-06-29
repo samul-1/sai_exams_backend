@@ -123,7 +123,7 @@ class Exam(models.Model):
         amounts = self.categories.all().values("amount")
         return sum(list(map(lambda a: a["amount"], amounts)))
 
-    def get_current_progress(self):
+    def get_current_progress(self, global_data_only=False):
         """
         Returns a dict detailing the current number of participants to the exam and their
         current progress in terms of how many items they've completed
@@ -152,15 +152,16 @@ class Exam(models.Model):
             if participant_progress == total_items_count:
                 completed_count += 1
 
-            ret["participants_progress"].append(
-                {
-                    "id": participant.user.pk,
-                    "email": participant.user.email,
-                    "full_name": participant.user.full_name,
-                    "course": participant.user.course,
-                    "progress": participant_progress,  # perc_progress,
-                }
-            )
+            if not global_data_only:
+                ret["participants_progress"].append(
+                    {
+                        "id": participant.user.pk,
+                        "email": participant.user.email,
+                        "full_name": participant.user.full_name,
+                        "course": participant.user.course,
+                        "progress": participant_progress,  # perc_progress,
+                    }
+                )
 
         ret["average_progress"] = (
             round(progress_sum / float(participants_count), 2)

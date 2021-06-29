@@ -107,7 +107,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     permission_classes = [TeachersOnly]
     # limit exam access for a user to those created by them or to which they've been granted access
     filter_backends = [filters.ExamCreatorAndAllowed, OrderingFilter]
-    renderer_classes = (ReportRenderer,) + tuple(api_settings.DEFAULT_RENDERER_CLASSES)
+    renderer_classes = tuple(api_settings.DEFAULT_RENDERER_CLASSES) + (ReportRenderer,)
     ordering = ["pk"]
 
     def update(self, request, pk=None):
@@ -173,7 +173,8 @@ class ExamViewSet(viewsets.ModelViewSet):
         """
 
         exam = self.get_object()
-        data = exam.get_current_progress()
+        global_only = "global_only" in request.query_params
+        data = exam.get_current_progress(global_data_only=global_only)
 
         return Response(data)
 
