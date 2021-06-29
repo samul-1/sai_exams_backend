@@ -251,8 +251,11 @@ class Category(models.Model):
         return self.name
 
     def save(self, render_tex=True, *args, **kwargs):
+        text_changed = (
+            self.introduction_text != Category.objects.get(pk=self.pk).introduction_text
+        )
         super(Category, self).save(*args, **kwargs)
-        if render_tex:
+        if render_tex and text_changed:
             self.rendered_introduction_text = tex_to_svg(self.introduction_text)
             self.save(render_tex=False)
 
@@ -577,8 +580,11 @@ class Question(models.Model):
         # todo check that question belongs to a category that is from the same exam as the question
         if self.category is not None and self.category.item_type != "q":
             raise InvalidCategoryType
+        text_changed = self.text != Question.objects.get(pk=self.pk).text
+
         super(Question, self).save(*args, **kwargs)
-        if render_tex:
+
+        if render_tex and text_changed:
             self.rendered_text = tex_to_svg(self.text)
             self.save(render_tex=False)
 
@@ -651,8 +657,11 @@ class Exercise(models.Model):
         # todo check that the exercise belongs to a category from the same exam as the exercise
         if self.category is not None and self.category.item_type != "e":
             raise InvalidCategoryType
+        text_changed = self.text != Exercise.objects.get(pk=self.pk).text
+
         super(Exercise, self).save(*args, **kwargs)
-        if render_tex:
+
+        if render_tex and text_changed:
             self.rendered_text = tex_to_svg(self.text)
             self.save(render_tex=False)
 
@@ -1206,8 +1215,9 @@ class Answer(models.Model):
         return self.text
 
     def save(self, render_tex=True, *args, **kwargs):
+        text_changed = self.text != Answer.objects.get(pk=self.pk).text
         super(Answer, self).save(*args, **kwargs)
-        if render_tex:
+        if render_tex and text_changed:
             self.rendered_text = tex_to_svg(self.text)
             self.save(render_tex=False)
 
