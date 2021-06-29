@@ -27,7 +27,7 @@ from .models import (
     User,
 )
 from .pdf import render_to_pdf
-from .permissions import IsTeacherOrReadOnly, TeachersOnly
+from .permissions import IsTeacherOrReadOnly, IsTeacherOrWriteOnly, TeachersOnly
 from .renderers import ReportRenderer
 from .serializers import (
     ExamSerializer,
@@ -43,7 +43,7 @@ from .serializers import (
 class FrontendErrorViewSet(viewsets.ModelViewSet):
     serializer_class = FrontendErrorSerializer
     queryset = FrontendError.objects.all()
-    permission_classes = [AllowAny]
+    permission_classes = [IsTeacherOrWriteOnly]
     # todo add permissions to prevent users from accessing the errors
 
     def perform_create(self, serializer):

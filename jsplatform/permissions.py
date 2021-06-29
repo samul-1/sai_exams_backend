@@ -12,3 +12,11 @@ class IsTeacherOrReadOnly(BasePermission):
 class TeachersOnly(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_teacher
+
+
+class IsTeacherOrWriteOnly(BasePermission):
+    def has_permission(self, request, view):
+        if not request.user.is_anonymous and request.user.is_teacher:
+            return True
+
+        return request.method == "POST"
