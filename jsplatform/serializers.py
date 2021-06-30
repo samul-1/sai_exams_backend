@@ -337,9 +337,12 @@ class QuestionSerializer(serializers.ModelSerializer):
         self.fields["category"] = serializers.PrimaryKeyRelatedField(
             queryset=Category.objects.all(), required=False
         )
+        self.fields["category_name"] = serializers.ReadOnlyField(source="category.name")
         # ! keep an eye on this
         self.fields["id"] = serializers.IntegerField(required=False)
-        self.fields["introduction"] = serializers.SerializerMethodField()
+        self.fields["introduction"] = serializers.ReadOnlyField(
+            source="category.introduction_text"
+        )
         # used to temporarily reference a newly created category from the frontend
         self.fields["category_uuid"] = serializers.UUIDField(
             write_only=True, required=False
@@ -398,9 +401,6 @@ class QuestionSerializer(serializers.ModelSerializer):
             answer.delete()
 
         return instance
-
-    def get_introduction(self, obj):
-        return obj.category.introduction_text
 
 
 class AnswerSerializer(serializers.ModelSerializer):

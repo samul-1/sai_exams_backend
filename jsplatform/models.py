@@ -42,7 +42,13 @@ class FrontendError(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     error_details = models.JSONField(null=True, blank=True)
     component_data = models.JSONField(null=True, blank=True)
+    component_name = models.TextField(null=True, blank=True)
+    route = models.TextField(null=True, blank=True)
     additional_info = models.TextField(null=True, blank=True)
+
+    def __str__(self):
+        username = self.user.full_name if self.user is not None else "Anonymous"
+        return f"{username} ({self.timestamp:%Y-%m-%d %H:%M:%S})"
 
 
 class Exam(models.Model):

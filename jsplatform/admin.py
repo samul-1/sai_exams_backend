@@ -18,7 +18,7 @@ from .models import (
 
 @admin.register(FrontendError)
 class FrontendErrorAdmin(admin.ModelAdmin):
-    pass
+    readonly_fields = ("timestamp",)
 
 
 @admin.register(User)
