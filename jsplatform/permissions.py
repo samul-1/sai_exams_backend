@@ -3,7 +3,7 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 class IsTeacherOrReadOnly(BasePermission):
     def has_permission(self, request, view):
-        if request.user.is_teacher:
+        if not request.user.is_anonymous and request.user.is_teacher:
             return True
 
         return request.method in SAFE_METHODS
@@ -11,7 +11,7 @@ class IsTeacherOrReadOnly(BasePermission):
 
 class TeachersOnly(BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_teacher
+        return not request.user.is_anonymous and request.user.is_teacher
 
 
 class IsTeacherOrWriteOnly(BasePermission):
