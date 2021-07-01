@@ -29,15 +29,5 @@ urlpatterns = [
     # path("__debug__/", include(debug_toolbar.urls)),
     path("api/v1/", include("djoser.urls")),
     path("api/v1/", include("djoser.urls.authtoken")),
-    # path(
-    #     "openapi",
-    #     get_schema_view(
-    #         title="JS Exercise Platform Backend",
-    #         description="API docs",
-    #         version="1.0.0",
-    #         public=True,
-    #         permission_classes=(permissions.AllowAny,),
-    #     ),
-    #     name="openapi-schema",
-    # ),
+    path("__debug__/", include(debug_toolbar.urls)),
 ]

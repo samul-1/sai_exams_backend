@@ -63,7 +63,9 @@ class QuestionViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = QuestionSerializer
-    queryset = Question.objects.all()
+    queryset = (
+        Question.objects.all().select_related("category").prefetch_related("answers")
+    )
 
     def get_queryset(self):
         """
@@ -102,7 +104,16 @@ class ExamViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = ExamSerializer
-    queryset = Exam.objects.all()
+    queryset = (
+        Exam.objects.all()
+        .select_related("locked_by", "created_by", "closed_by")
+        .prefetch_related(
+            "questions",
+            "exercises",
+            "categories",
+            "allowed_teachers",
+        )
+    )
     # only allow teachers to access exams' data
     permission_classes = [TeachersOnly]
     # limit exam access for a user to those created by them or to which they've been granted access
@@ -286,7 +297,7 @@ class ExerciseViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = ExerciseSerializer
-    queryset = Exercise.objects.all()
+    queryset = Exercise.objects.all().prefetch_related("testcases")
 
     # only allow teachers to create or update exercises
     permission_classes = [IsTeacherOrReadOnly]

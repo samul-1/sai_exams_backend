@@ -281,7 +281,7 @@ class Category(models.Model):
             .prefetch_related("given_answers")
         )
         completed_participant_count = self.exam.participations.filter(
-            exhaused_categories__in=[self]
+            exhausted_categories__in=[self]
         ).count()
 
         # number of items of this category that have been seen by a student
@@ -1121,6 +1121,7 @@ class Submission(models.Model):
             return 0
         return len([t for t in self.details["tests"] if t["passed"]])
 
+    # todo make this a property
     def public_details(self):
         """
         Returns a subset of the details field dict containing information about public tests only,
@@ -1250,7 +1251,7 @@ class GivenAnswer(models.Model):
         return str(self.question) + " " + str(self.answer)
 
     def save(self, get_next_item=True, *args, **kwargs):
-        if self.answer not in self.question.answers.all() and self.answer is not None:
+        if self.answer is not None and self.answer not in self.question.answers.all():
             raise InvalidAnswerException
 
         creating = not self.pk  # see if the objects exists already or is being created
