@@ -242,6 +242,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["patch"])
     def terminate(self, request, **kwargs):
+        raise Exception
         now = timezone.localtime(timezone.now())
 
         exam = self.get_object()
