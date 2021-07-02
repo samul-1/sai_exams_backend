@@ -245,7 +245,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         now = timezone.localtime(timezone.now())
 
         exam = self.get_object()
-        exam.close_exam(user=request.user)
+        exam.close_exam(closed_by=request.user)
 
         context = {
             "request": request,
