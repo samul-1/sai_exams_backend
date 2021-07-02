@@ -242,7 +242,6 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["patch"])
     def terminate(self, request, **kwargs):
-        raise Exception
         now = timezone.localtime(timezone.now())
 
         exam = self.get_object()
@@ -334,6 +333,7 @@ class ExerciseViewSet(viewsets.ModelViewSet):
 class GivenAnswerViewSet(viewsets.ModelViewSet):
     serializer_class = GivenAnswerSerializer
     queryset = GivenAnswer.objects.all()
+    # todo can probably use TeacherOrWriteOnly permission class -- test this
     # ! add filter to prevent accessing other people's answers
 
     # def dispatch(self, request, *args, **kwargs):
