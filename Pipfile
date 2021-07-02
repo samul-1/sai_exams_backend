@@ -33,6 +33,7 @@ pyPdf = "*"
 weasyprint = "*"
 django-extensions = "*"
 cairosvg = "*"
+django-silk = "*"
 
 [dev-packages]
 

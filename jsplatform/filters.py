@@ -38,7 +38,8 @@ class TeacherOrAssignedOnly(filters.BaseFilterBackend):
 
 class ExamCreatorAndAllowed(filters.BaseFilterBackend):
     """
-    Limits the exam queryset to those the user has either created or has been allowed to access
+    Limits the exam queryset to the exams the user has either created
+    or has been granted access to
     """
 
     def filter_queryset(self, request, queryset, view):
