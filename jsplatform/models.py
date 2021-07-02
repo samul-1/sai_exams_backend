@@ -118,6 +118,15 @@ class Exam(models.Model):
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)("exam_list", message)
 
+    def close_exam(self, closed_by):
+        now = timezone.localtime(timezone.now())
+
+        self.closed = True
+        self.closed_at = now
+        self.closed_by = closed_by
+
+        self.save()
+
     # todo make this a property
     def get_number_of_items_per_exam(self):
         """
@@ -1223,7 +1232,10 @@ class Answer(models.Model):
         return self.text
 
     def save(self, render_tex=True, *args, **kwargs):
-        text_changed = self.text != Answer.objects.get(pk=self.pk).text
+        try:
+            text_changed = self.text != Answer.objects.get(pk=self.pk).text
+        except Answer.DoesNotExist:
+            text_changed = True
         super(Answer, self).save(*args, **kwargs)
         if render_tex and text_changed:
             self.rendered_text = tex_to_svg(self.text)

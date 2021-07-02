@@ -200,7 +200,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         now = timezone.localtime(timezone.now())
 
         # get current exam
-        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))
+        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))  # self.get_object()
 
         if exam.begin_timestamp > now:
             return Response(
@@ -245,11 +245,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         now = timezone.localtime(timezone.now())
 
         exam = self.get_object()
-        exam.closed = True
-        exam.closed_at = now
-        exam.closed_by = request.user
-
-        exam.save()
+        exam.close_exam(user=request.user)
 
         context = {
             "request": request,
@@ -261,6 +257,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     def zip_archive(self, request, **kwargs):
         exam = self.get_object()
         report, _ = ExamReport.objects.get_or_create(exam=exam)
+        # todo make a get_or_create function for zip archives
         if not report.zip_report_archive:
             report.generate_zip_archive()
         filename = report.zip_report_archive.name.split("/")[-1]
@@ -269,6 +266,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["post"])
+    # todo rename to csv_report
     def report(self, request, **kwargs):
         exam = self.get_object()
         report, _ = ExamReport.objects.get_or_create(exam=exam)
@@ -329,7 +327,7 @@ class ExerciseViewSet(viewsets.ModelViewSet):
         queryset = queryset.filter(
             pk__in=list(map(lambda p: p.current_exercise.pk, progress_objects))
         )
-        return queryset.prefetch_related("testcases")
+        return queryset
 
 
 class GivenAnswerViewSet(viewsets.ModelViewSet):
