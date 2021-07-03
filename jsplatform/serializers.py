@@ -247,6 +247,7 @@ class ExamSerializer(serializers.ModelSerializer):
             return None
 
     def get_locked_by(self, obj):
+        # todo see if you can just use a ReadOnlyField
         return obj.locked_by.full_name if obj.locked_by is not None else None
 
 
@@ -330,6 +331,8 @@ class QuestionSerializer(serializers.ModelSerializer):
         )
 
         if not self.context["request"].user.is_teacher:
+            # show text with TeX rendered as svg instead of the source
+            # text to non-teacher users
             self.fields["text"] = serializers.CharField(source="rendered_text")
 
     def get_text(self, obj):
@@ -396,7 +399,8 @@ class AnswerSerializer(serializers.ModelSerializer):
             self.fields["is_right_answer"] = serializers.BooleanField()
             self.fields["selections"] = serializers.IntegerField(read_only=True)
         else:
-            # hide source text to non-teacher users and show rendered text instead
+            # show text with TeX rendered as svg instead of the source
+            # text to non-teacher users
             self.fields["text"] = serializers.CharField(source="rendered_text")
 
 

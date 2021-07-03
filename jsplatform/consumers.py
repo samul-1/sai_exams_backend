@@ -23,21 +23,17 @@ class ExamListConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
         self.group_name = "exam_list"
-        print("connected to exam list")
 
         # subscribe to exam list group to receive updates
         await self.channel_layer.group_add(self.group_name, self.channel_name)
-        print("all right")
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
-        print("disconnected from exam list")
 
     async def receive(self, text_data):
         text_data_json = text_data
         action = text_data_json["action"]
 
-        print("received command")
         if action == "lock":
             await self.broadcast_lock(text_data_json["id"], text_data_json["by"])
         elif action == "unlock":
@@ -63,6 +59,7 @@ class ExamListConsumer(AsyncWebsocketConsumer):
                 "exam_id": exam_id,
             },
         )
+        # todo send new updated data for the exam
 
     """
     Handlers
@@ -70,7 +67,7 @@ class ExamListConsumer(AsyncWebsocketConsumer):
 
     async def exam_lock(self, event):
         if not await self.in_user_scope(event["exam_id"]):
-            # exam isn't visible by user; don't send them anything
+            # exam isn't visible to user; don't send them anything
             return
 
         await self.send(
@@ -85,7 +82,7 @@ class ExamListConsumer(AsyncWebsocketConsumer):
 
     async def exam_unlock(self, event):
         if not await self.in_user_scope(event["exam_id"]):
-            # exam isn't visible by user; don't send them anything
+            # exam isn't visible to user; don't send them anything
             return
 
         await self.send(
@@ -100,7 +97,8 @@ class ExamListConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def in_user_scope(self, exam_id):
         """
-        Returns True if the given exam is visible to the scope user, False otherwise
+        Returns True if the given exam is visible to the scope user;
+        False otherwise
         """
         exam = Exam.objects.get(pk=exam_id)
         return exam.created_by == self.user or self.user in exam.allowed_teachers.all()
@@ -112,6 +110,10 @@ class ExamLockConsumer(AsyncWebsocketConsumer):
     """
 
     async def connect(self):
+        """
+        Upon connection to this consumer, the relevant exam gets locked by the
+        connecting user
+        """
         self.exam_id = self.scope["url_route"]["kwargs"]["exam_id"]
         self.user = self.scope["user"]
         self.group_name = "exam_%s" % self.exam_id
@@ -123,25 +125,23 @@ class ExamLockConsumer(AsyncWebsocketConsumer):
         # check whether someone else is editing this exam
         who_locked = await self.who_locked(self.exam_id)
         if who_locked is not None and who_locked != self.user:
+            # exam already locked by someone else
             await self.close()
             return
 
         # join room group
         await self.channel_layer.group_add(self.group_name, self.channel_name)
 
-        # lock exam
         await self.lock_exam(self.exam_id)
-        print("locked")
-
         await self.accept()
 
     async def disconnect(self, close_code):
-        print("unlocked")
         who_locked = await self.who_locked(self.exam_id)
         if who_locked == self.user:
             await self.unlock_exam(self.exam_id)
 
-        # broadcast a kill signal to handle the case where the user has multiple tabs open
+        # broadcast a kill signal to handle the case where the user has multiple
+        # tabs or windows open
         await self.channel_layer.group_send(
             self.group_name,
             {

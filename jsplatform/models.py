@@ -9,6 +9,7 @@ from channels.layers import get_channel_layer
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import models
@@ -590,7 +591,7 @@ class Question(models.Model):
         ordering = ["pk"]
 
     def __str__(self):
-        return self.text
+        return self.text[:100]
 
     def save(self, render_tex=True, *args, **kwargs):
         # todo check that question belongs to a category that is from the same exam as the question
@@ -605,6 +606,13 @@ class Question(models.Model):
         if render_tex and text_changed:
             self.rendered_text = tex_to_svg(self.text)
             self.save(render_tex=False)
+
+    def clean(self):
+        if self.category.exam.pk != self.exam.pk:
+            raise ValidationError(
+                "Question's category's  is not the same as question's exam"
+            )
+        return super().clean()
 
     @property
     def num_appearances(self):
@@ -778,6 +786,9 @@ class ExamProgress(models.Model):
         related_name="question_completed_in_exams",
         blank=True,
     )
+
+    def __str__(self):
+        return f"{self.user.full_name} - {self.exam}"
 
     # todo better naming and make this a property
     def get_progress_percentage(self):
@@ -1254,7 +1265,12 @@ class GivenAnswer(models.Model):
     )
 
     # used if the referenced question is a multiple-choice one
-    answer = models.ForeignKey(Answer, null=True, blank=True, on_delete=models.CASCADE)
+    answer = models.ForeignKey(
+        Answer,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
 
     # used if the referenced question is an open-ended one
     text = models.TextField(blank=True, null=True)
@@ -1276,3 +1292,10 @@ class GivenAnswer(models.Model):
         if creating and get_next_item:
             # get next exam item
             self.question.exam.get_item_for(self.user, force_next=True)
+
+    def clean(self):
+        if self.answer is not None and self.answer.question.pk != self.question.pk:
+            raise ValidationError(
+                "GivenAnswer's answer does not belong to the question"
+            )
+        return super().clean()
