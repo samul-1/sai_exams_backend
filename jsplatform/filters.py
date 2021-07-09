@@ -8,14 +8,10 @@ class TeacherOrOwnedOnly(filters.BaseFilterBackend):
     objects only
     """
 
-    pass
-    # def filter_queryset(self, request, queryset, view):
-    #     if not request.user.is_teacher:
-    #         return queryset.filter(
-    #             user=request.user,
-    #             exercise__id__in=request.user.assigned_exercises.all(),
-    #         )
-    #     return queryset
+    def filter_queryset(self, request, queryset, view):
+        if not request.user.is_teacher:
+            return queryset.filter(user=request.user)
+        return queryset
 
 
 class TeacherOrAssignedOnly(filters.BaseFilterBackend):

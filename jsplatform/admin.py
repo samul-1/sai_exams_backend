@@ -28,7 +28,10 @@ class UserAdmin(admin.ModelAdmin):
 
 @admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
-    pass
+    readonly_fields = (
+        "created",
+        "updated",
+    )
 
 
 @admin.register(Category)
@@ -51,12 +54,18 @@ class ExamProgressAdmin(admin.ModelAdmin):
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
-    pass
+    readonly_fields = (
+        "created",
+        "updated",
+    )
 
 
 @admin.register(TestCase)
 class TestCaseAdmin(admin.ModelAdmin):
-    pass
+    readonly_fields = (
+        "created",
+        "updated",
+    )
 
 
 @admin.register(Submission)
@@ -66,12 +75,18 @@ class SubmissionAdmin(admin.ModelAdmin):
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    pass
+    readonly_fields = (
+        "created",
+        "updated",
+    )
 
 
 @admin.register(Answer)
 class AnswerAdmin(admin.ModelAdmin):
-    pass
+    readonly_fields = (
+        "created",
+        "updated",
+    )
 
 
 @admin.register(GivenAnswer)

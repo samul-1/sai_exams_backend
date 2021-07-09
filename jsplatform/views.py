@@ -425,7 +425,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = SubmissionSerializer
-    # ! filter_backends = [filters.TeacherOrOwnedOnly]
+    filter_backends = [filters.TeacherOrOwnedOnly]
     queryset = Submission.objects.all()
 
     #! investigate, this is causing 403

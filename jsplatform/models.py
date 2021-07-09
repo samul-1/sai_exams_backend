@@ -608,6 +608,7 @@ class Question(models.Model):
             self.save(render_tex=False)
 
     def clean(self):
+        # todo move this up to save()
         if self.category.exam.pk != self.exam.pk:
             raise ValidationError(
                 "Question's category's  is not the same as question's exam"
@@ -1225,6 +1226,7 @@ class Submission(models.Model):
         self.save()
 
         # mark exercise as completed and update ExamProgress' current exercise to a random new exercise
+        # todo this needs to go away
         self.exercise.exam.get_item_for(self.user, force_next=True)
 
 
@@ -1293,9 +1295,9 @@ class GivenAnswer(models.Model):
             # get next exam item
             self.question.exam.get_item_for(self.user, force_next=True)
 
-    def clean(self):
-        if self.answer is not None and self.answer.question.pk != self.question.pk:
-            raise ValidationError(
-                "GivenAnswer's answer does not belong to the question"
-            )
-        return super().clean()
+    # def clean(self):
+    #     if self.answer is not None and self.answer.question.pk != self.question.pk:
+    #         raise ValidationError(
+    #             "GivenAnswer's answer does not belong to the question"
+    #         )
+    #     return super().clean()
