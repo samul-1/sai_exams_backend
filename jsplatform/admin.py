@@ -50,6 +50,9 @@ class CompletedExercisesInline(admin.TabularInline):
 @admin.register(ExamProgress)
 class ExamProgressAdmin(admin.ModelAdmin):
     inlines = [CompletedQuestionsInline, CompletedExercisesInline]
+    # list_display = ("pdf_report",)
+    # list_display_links = ("pdf_report",)
+    # list_editable = ("pdf_report",)
 
 
 @admin.register(Exercise)

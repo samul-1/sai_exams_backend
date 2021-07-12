@@ -345,7 +345,7 @@ class ExamReport(models.Model):
         # first generate pdf files for all exam participants
         participations = self.exam.participations.all()
         for participation in participations:
-            print(participation.pdf_report)
+            # print(participation.pdf_report)
             if not participation.pdf_report:
                 participation.generate_pdf()
 
@@ -438,9 +438,11 @@ class ExamReport(models.Model):
                         else 0
                     )
                 )
-            ).order_by(
-                F("examcompletedexercisesthroughmodel__ordering").asc(nulls_last=True)
             ):
+                # .order_by(
+                #     F("examcompletedexercisesthroughmodel__ordering").asc(nulls_last=True)
+                # ):
+
                 exercise_details = {
                     f"Esercizio JS { exerciseCount } testo": exercise.text
                 }
@@ -482,9 +484,10 @@ class ExamReport(models.Model):
                         else 0
                     )
                 )
-            ).order_by(
-                F("examcompletedquestionsthroughmodel__ordering").asc(nulls_last=True)
             ):
+                # .order_by(
+                #     F("examcompletedquestionsthroughmodel__ordering").asc(nulls_last=True)
+                # ):
                 question_details = {
                     f"Domanda { questionCount } testo": preprocess_html_for_csv(
                         question.text
@@ -502,9 +505,9 @@ class ExamReport(models.Model):
                 question_details[f"Domanda { questionCount } risposta corretta"] = []
 
                 for given_answer in given_answers:
-                    print("GIVEN ANSWER")
-                    print(given_answer.pk)
-                    print(given_answer)
+                    # print("GIVEN ANSWER")
+                    # print(given_answer.pk)
+                    # print(given_answer)
                     question_details[f"Domanda { questionCount } risposta data"].append(
                         given_answer.text
                         if given_answer.question.question_type == "o"
@@ -831,23 +834,23 @@ class ExamProgress(models.Model):
             "exercises": [],
         }
 
-        exercises = (
-            self.exam.exercises.filter(
-                Q(pk__in=self.completed_exercises.all())
-                | Q(
-                    pk=(
-                        self.current_exercise.pk
-                        if self.current_exercise is not None
-                        else 0
-                    )
-                )
-            )
-            .distinct()
-            .order_by(
-                F("examcompletedexercisesthroughmodel__ordering").asc(nulls_last=True)
-            )
-            .prefetch_related("testcases")
-        )
+        # exercises = (
+        #     self.exam.exercises.filter(
+        #         Q(pk__in=self.completed_exercises.all())
+        #         | Q(
+        #             pk=(
+        #                 self.current_exercise.pk
+        #                 if self.current_exercise is not None
+        #                 else 0
+        #             )
+        #         )
+        #     )
+        #     .distinct()
+        #     .order_by(
+        #         F("examcompletedexercisesthroughmodel__ordering").asc(nulls_last=True)
+        #     )
+        #     .prefetch_related("testcases")
+        # )
 
         questions = (
             self.exam.questions.filter(
@@ -860,17 +863,18 @@ class ExamProgress(models.Model):
                     )
                 )
             )
-            .order_by(
-                F("examcompletedquestionsthroughmodel__ordering").asc(nulls_last=True)
-            )
+            # .order_by(
+            #     F("examcompletedquestionsthroughmodel__ordering").asc(nulls_last=True)
+            # )
             .distinct()
             .prefetch_related("answers")
             .prefetch_related("given_answers")
         )
 
-        print(questions)
+        print(len(questions))
 
         for question in questions:
+            # print(question.pk)
             given_answers = question.given_answers.filter(user=self.user)
 
             q = {
@@ -1036,7 +1040,7 @@ class ExamProgress(models.Model):
             or self.served_for_current_category == self.current_category.amount
             or self.current_category.amount == 0
         ):
-            print("moving")
+            # print("moving")
             try:
                 self.move_to_next_category()
             except OutOfCategories:  # we exhausted all the categories; there are no more items to return
