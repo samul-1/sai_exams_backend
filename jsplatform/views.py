@@ -117,7 +117,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     # only allow teachers to access exams' data
     permission_classes = [TeachersOnly]
     # limit exam access for a user to those created by them or to which they've been granted access
-    filter_backends = [filters.ExamCreatorAndAllowed, OrderingFilter]
+    # filter_backends = [filters.ExamCreatorAndAllowed, OrderingFilter]
     renderer_classes = tuple(api_settings.DEFAULT_RENDERER_CLASSES) + (ReportRenderer,)
     ordering = ["pk"]
 
@@ -190,17 +190,13 @@ class ExamViewSet(viewsets.ModelViewSet):
         return Response(data)
 
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
-    def my_exam(self, request, **kwargs):
-        """
-        Assigns an exercise from active exam to user if they haven't been assigned one yet;
-        returns that exercise
-
-        Only students can access this (access from teachers returns 403)
-        """
+    def next_item(self, request, **kwargs):
+        # todo extract
         now = timezone.localtime(timezone.now())
 
         # get current exam
-        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))  # self.get_object()
+        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))
+        # exam = self.get_object()
 
         # todo override get_queryset to filter out draft exams, closed, and not-yet-began ones to students
         if exam.begin_timestamp > now:
@@ -214,16 +210,13 @@ class ExamViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
                 data={"message": "L'esame è terminato"},
             )
-        # this will either create a new ExamProgress object and get a random item for
-        # the user if this is the first visit, or will return the currently active
-        # item (question or coding exercise) if it's not
-        item = exam.get_item_for(request.user, force_next=False)  # force_next=True
 
-        # there are no more exercises to show the user; send special http code for frontend to handle this
-        if item is None:
-            return Response(
-                status=status.HTTP_204_NO_CONTENT,
-            )
+        exam_progress = get_object_or_404(ExamProgress, exam=exam, user=request.user)
+        item = exam_progress.move_cursor_forward()
+
+        assert item is not None
+
+        print(item)
 
         context = {
             "request": request,
@@ -236,6 +229,106 @@ class ExamViewSet(viewsets.ModelViewSet):
             context["submissions"] = student_submissions
             context["exercise"] = item
         else:
+            context["question"] = item
+
+        serializer = ExamSerializer(instance=exam, context=context, **kwargs)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    def previous_item(self, request, **kwargs):
+        # todo extract
+        now = timezone.localtime(timezone.now())
+
+        # get current exam
+        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))
+        # exam = self.get_object()
+
+        # todo override get_queryset to filter out draft exams, closed, and not-yet-began ones to students
+        if exam.begin_timestamp > now:
+            return Response(
+                status=status.HTTP_404_NOT_FOUND,
+                data={"message": "L'esame non è  ancora iniziato"},
+            )
+
+        if exam.closed:  # exam.end_timestamp <= now:
+            return Response(
+                status=status.HTTP_404_NOT_FOUND,
+                data={"message": "L'esame è terminato"},
+            )
+
+        exam_progress = get_object_or_404(ExamProgress, exam=exam, user=request.user)
+        item = exam_progress.move_cursor_back()
+
+        assert item is not None
+
+        print(item)
+
+        context = {
+            "request": request,
+        }
+
+        # determine if the item retrieved is a programming exercise or a question
+        if isinstance(item, Exercise):
+            # retrieve user's submissions to this exercise and send them along
+            student_submissions = item.submissions.filter(user=request.user)
+            context["submissions"] = student_submissions
+            context["exercise"] = item
+        else:
+            context["question"] = item
+
+        serializer = ExamSerializer(instance=exam, context=context, **kwargs)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    def current_item(self, request, **kwargs):
+        # todo rewrite below comment
+        """
+        Assigns an exercise from active exam to user if they haven't been assigned one yet;
+        returns that exercise
+
+        Only students can access this (access from teachers returns 403)
+        """
+        # todo extract
+        now = timezone.localtime(timezone.now())
+
+        # get current exam
+        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))
+        # exam = self.get_object()
+
+        # todo override get_queryset to filter out draft exams, closed, and not-yet-began ones to students
+        if exam.begin_timestamp > now:
+            return Response(
+                status=status.HTTP_404_NOT_FOUND,
+                data={"message": "L'esame non è  ancora iniziato"},
+            )
+
+        if exam.closed:  # exam.end_timestamp <= now:
+            return Response(
+                status=status.HTTP_404_NOT_FOUND,
+                data={"message": "L'esame è terminato"},
+            )
+
+        exam_progress, _ = ExamProgress.objects.get_or_create(
+            user=request.user, exam=exam
+        )
+        item = exam_progress.current_item
+
+        assert item is not None
+
+        print(item)
+
+        context = {
+            "request": request,
+        }
+
+        # determine if the item retrieved is a programming exercise or a question
+        if isinstance(item, Exercise):
+            # retrieve user's submissions to this exercise and send them along
+            student_submissions = item.submissions.filter(user=request.user)
+            context["submissions"] = student_submissions
+            context["exercise"] = item
+        else:
+            print("WE'RE HERE")
             context["question"] = item
 
         serializer = ExamSerializer(instance=exam, context=context, **kwargs)

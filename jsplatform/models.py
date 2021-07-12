@@ -17,6 +17,7 @@ from django.db.models import F, JSONField, Q
 from django.utils import timezone
 from users.models import User
 
+from jsplatform.exceptions import ExamCompletedException
 from jsplatform.pdf import preprocess_html_for_csv
 
 from .exceptions import (
@@ -142,6 +143,7 @@ class Exam(models.Model):
         return sum(list(map(lambda a: a["amount"], amounts)))
 
     def get_current_progress(self, global_data_only=False):
+        # !!!
         """
         Returns a dict detailing the current number of participants to the exam and their
         current progress in terms of how many items they've completed
@@ -430,19 +432,8 @@ class ExamReport(models.Model):
             # get submission data for this participant for each exercise in the exam
             exerciseCount = 1
             for exercise in exercises.filter(
-                Q(pk__in=participant_state.completed_exercises.all())
-                | Q(
-                    pk=(
-                        participant_state.current_exercise.pk
-                        if participant_state.current_exercise is not None
-                        else 0
-                    )
-                )
+                Q(pk__in=participant_state.exercises.all())
             ):
-                # .order_by(
-                #     F("examcompletedexercisesthroughmodel__ordering").asc(nulls_last=True)
-                # ):
-
                 exercise_details = {
                     f"Esercizio JS { exerciseCount } testo": exercise.text
                 }
@@ -475,19 +466,8 @@ class ExamReport(models.Model):
 
             # get submission data for this participant for each question in the exam
             questionCount = 1
-            for question in questions.filter(
-                Q(pk__in=participant_state.completed_questions.all())
-                | Q(
-                    pk=(
-                        participant_state.current_question.pk
-                        if participant_state.current_question is not None
-                        else 0
-                    )
-                )
-            ):
-                # .order_by(
-                #     F("examcompletedquestionsthroughmodel__ordering").asc(nulls_last=True)
-                # ):
+            for question in questions.filter(pk__in=participant_state.questions.all()):
+                # todo order_by examcompletedquestionsthroughmodel__ordering
                 question_details = {
                     f"Domanda { questionCount } testo": preprocess_html_for_csv(
                         question.text
@@ -630,13 +610,7 @@ class Question(models.Model):
 
     @property
     def num_appearances(self):
-        return (
-            ExamProgress.objects.filter(
-                Q(completed_questions__in=[self]) | Q(current_question=self)
-            )
-            .distinct()  # ? why is this necessary? the ones with current_question=self are counted twice??
-            .count()
-        )
+        return ExamProgress.objects.filter(questions__in=[self]).count()
 
     @property
     def introduction_text(self):
@@ -718,13 +692,7 @@ class Exercise(models.Model):
 
     @property
     def num_appearances(self):
-        return (
-            ExamProgress.objects.filter(
-                Q(completed_exercises__in=[self]) | Q(current_exercise=self)
-            )
-            .distinct()
-            .count()
-        )  # ? distinct
+        return ExamProgress.objects.filter(exercises__in=[self]).count()
 
 
 class ExamProgress(models.Model):
@@ -732,12 +700,6 @@ class ExamProgress(models.Model):
     Represents the progress of a user during an exam, that is the exercises they've already
     completed and the current one they're doing
     """
-
-    EXAM_ITEMS = (
-        ("q", "QUESTIONS"),
-        ("e", "EXERCISES"),
-        ("c", "ALL COMPLETED"),
-    )
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -750,74 +712,109 @@ class ExamProgress(models.Model):
 
     pdf_report = models.FileField(upload_to=get_pdf_upload_path, null=True, blank=True)
 
-    # ! make this settable on a per-exam basis instead of hard-coding a default
-    # determines what the first type of exam items that should be served is
-    initial_item_type = models.CharField(max_length=1, default="q", choices=EXAM_ITEMS)
-
-    # determines whether the user is to be served multiple choice questions or coding exercises,
-    # depending on whether they have completed all items of the other category
-    currently_serving = models.CharField(max_length=1, default="q", choices=EXAM_ITEMS)
-
-    # determines which category the exercises/questions that are being served must belong to
-    current_category = models.ForeignKey(
-        Category, null=True, on_delete=models.SET_NULL, related_name="current_in_exams"
-    )
-    # holds the counter of exercises/questions that have been served for the current category
-    served_for_current_category = models.PositiveIntegerField(default=0)
-    # lists the categories for which questions/exercises have been served already
-    exhausted_categories = models.ManyToManyField(Category, blank=True)
-
-    completed_items_count = models.PositiveIntegerField(
-        null=True, blank=True, default=None
-    )
-
-    # ! add limit_choices_to to all these fields
-    current_exercise = models.ForeignKey(
-        Exercise,
-        related_name="current_in_exams",
-        null=True,
-        default=None,
-        blank=True,
-        on_delete=models.CASCADE,
-    )
-    completed_exercises = models.ManyToManyField(
-        Exercise,
-        through="ExamCompletedExercisesThroughModel",
-        related_name="completed_in_exams",
-        blank=True,
-    )
-
-    current_question = models.ForeignKey(
+    questions = models.ManyToManyField(
         Question,
-        related_name="question_current_in_exams",
-        null=True,
-        default=None,
-        blank=True,
-        on_delete=models.CASCADE,
-    )
-
-    completed_questions = models.ManyToManyField(
-        Question,
-        through="ExamCompletedQuestionsThroughModel",
+        through="ExamProgressQuestionsThroughModel",
         related_name="question_completed_in_exams",
         blank=True,
     )
 
+    exercises = models.ManyToManyField(
+        Exercise,
+        through="ExamProgressExercisesThroughModel",
+        related_name="completed_in_exams",
+        blank=True,
+    )
+
+    current_item_cursor = models.PositiveIntegerField(
+        default=0
+    )  # current item being displayed
+
+    is_done = models.BooleanField(default=False)
+    is_initialized = models.BooleanField(default=False)
+
     def __str__(self):
         return f"{self.user.full_name} - {self.exam}"
 
-    # todo better naming and make this a property
-    def get_progress_percentage(self):
+    def save(self, *args, **kwargs):
+        creating = self.pk is None
+        super(ExamProgress, self).save(*args, **kwargs)
+        if creating:
+            self.generate_items()
+
+    @property
+    def progress_as_decimal(self):
         """
         Return a float with two decimal digits representing the percentage of completion of the
         exam in terms of completed items vs total items in the exam
         """
+        pass
 
-        total_item_count = self.exam.get_number_of_items_per_exam()
-        if self.completed_items_count is None:
-            return 0
+    @property
+    def current_item(self):
+        try:
+            # return self.questions.get(ordering=self.current_item_cursor)
+            return ExamProgressQuestionsThroughModel.objects.get(
+                exam_progress=self, ordering=self.current_item_cursor
+            ).question
+        except ExamProgressQuestionsThroughModel.DoesNotExist:
+            return ExamProgressExercisesThroughModel.objects.get(
+                exam_progress=self, ordering=self.current_item_cursor
+            ).exercise
+            # return self.exercises.get(ordering=self.current_item_cursor)
 
-        return round(float(self.completed_items_count) / float(total_item_count), 2)
+    def generate_items(self):
+        if self.is_initialized:
+            # ? raise exception?
+            return
+
+        item_count = 0
+        # for each category, add `category.amount` questions to `self.questions`, incrementing
+        # `item_count` at each iteration. follow randomization rules etc.
+        question_categories = self.exam.categories.filter(item_type="q")
+        if self.exam.randomize_questions:
+            question_categories = question_categories.order_by("?")
+
+        item_count = 0
+        for category in question_categories:
+            items = category.questions.all()
+            if category.randomize:
+                items = items.order_by("?")
+
+            items = items[: category.amount]
+
+            for item in items:
+                through_row = ExamProgressQuestionsThroughModel(
+                    exam_progress=self, question=item, ordering=item_count
+                )
+                through_row.save()
+                item_count += 1
+
+        # todo do the same for exercises
+        self.is_initialized = True
+        self.save()
+
+    def move_cursor_back(self):
+        if self.is_done:
+            raise ExamCompletedException
+        if self.current_item_cursor > 0:
+            self.current_item_cursor -= 1
+            self.save()
+
+        return self.current_item
+
+    def move_cursor_forward(self):
+        if self.is_done:
+            raise ExamCompletedException
+        # if self.current_item_cursor == self.exam.number_of_items - 1:
+        #     self.is_done = True  # ? should we do this somewhere else?
+        #     self.save()
+        #     return None
+        if self.current_item_cursor < self.exam.get_number_of_items_per_exam() - 1:
+            self.current_item_cursor += 1
+            self.save()
+
+        return self.current_item
 
     def get_progress_as_dict(self):
         """
@@ -834,42 +831,22 @@ class ExamProgress(models.Model):
             "exercises": [],
         }
 
-        # exercises = (
-        #     self.exam.exercises.filter(
-        #         Q(pk__in=self.completed_exercises.all())
-        #         | Q(
-        #             pk=(
-        #                 self.current_exercise.pk
-        #                 if self.current_exercise is not None
-        #                 else 0
-        #             )
-        #         )
-        #     )
-        #     .distinct()
-        #     .order_by(
-        #         F("examcompletedexercisesthroughmodel__ordering").asc(nulls_last=True)
-        #     )
-        #     .prefetch_related("testcases")
-        # )
-
+        exercises = self.exam.exercises.filter(
+            Q(pk__in=self.exercises.all())
+        ).prefetch_related("testcases")
+        print("here")
         questions = (
-            self.exam.questions.filter(
-                Q(pk__in=self.completed_questions.all())
-                | Q(
-                    pk=(
-                        self.current_question.pk
-                        if self.current_question is not None
-                        else 0
-                    )
-                )
-            )
-            # .order_by(
-            #     F("examcompletedquestionsthroughmodel__ordering").asc(nulls_last=True)
-            # )
-            .distinct()
+            self.exam.questions.filter(pk__in=self.questions.all())
+            .order_by("examprogressquestionsthroughmodel__ordering")
+            .filter(
+                examprogressquestionsthroughmodel__exam_progress=self
+            )  # MAJOR BREAKTHROUGH
+            # todo order_by examcompletedquestionsthroughmodel__ordering"
             .prefetch_related("answers")
             .prefetch_related("given_answers")
         )
+
+        print(questions.query)
 
         print(len(questions))
 
@@ -919,57 +896,6 @@ class ExamProgress(models.Model):
         # todo handle cases of people with same full name
         self.pdf_report.save("%s.pdf" % self.user.full_name, (pdf_binary))
 
-    def move_to_next_type(self):
-        """
-        Updates the type of items that are currently being served to this user
-        """
-        if self.currently_serving == "c":  # all done
-            return
-
-        # initial item type was questions and we're done serving questions; move onto exercises
-        if self.currently_serving == "q" and self.initial_item_type == "q":
-            self.currently_serving = "e"
-
-        # initial item type was exercises and we're done serving exercises; move onto questions
-        elif self.currently_serving == "e" and self.initial_item_type == "e":
-            self.currently_serving = "q"
-
-        # we're done serving a type of items which is the other one than the initial one:
-        # we're done with all item types
-        else:
-            self.currently_serving = "c"
-
-        self.save()
-
-    def move_to_next_category(self):
-        """
-        Resets the `served_for_current_category` counter, adds current category to list of
-        `exhausted_categories`, and randomly picks a new category
-        """
-        self.served_for_current_category = 0
-
-        if self.current_category is not None:
-            self.exhausted_categories.add(self.current_category)
-        self.current_category = None
-        self.save()
-
-        remaining_categories = self.exam.categories.filter(
-            item_type=self.currently_serving
-        ).exclude(id__in=self.exhausted_categories.all())
-
-        if remaining_categories.count() == 0:  # exhausted all categories
-            raise OutOfCategories
-
-        if (self.currently_serving == "q" and self.exam.randomize_questions) or (
-            self.currently_serving == "e" and self.exam.randomize_exercises
-        ):
-            remaining_categories = remaining_categories.order_by("?")
-
-        random_category = remaining_categories[0]  # pick a new category
-
-        self.current_category = random_category
-        self.save()
-
     # ? put this in a logic.py module?
     def simulate(self):
         """
@@ -987,117 +913,20 @@ class ExamProgress(models.Model):
 
         return (questions, exercises)
 
-    def get_next_item(self, force_next=False, increment_count=True):
-        """
-        If called with `force_next` set to False, returns the current item of current category
-        If `force_next` is True, a new random item of current category is returned if there are any left;
-        otherwise, the current category of items is updated to the next one and the function is called
-        again to recursively get a new item of the new category and return it
-        """
-        if self.currently_serving == "c":
-            # exam was completed
-            # self.generate_pdf()
-            return None
 
-        if not force_next:
-            # no state update required; just return current item of current category
-            return (
-                self.current_exercise
-                if self.currently_serving == "e"
-                else self.current_question
-            )
-
-        # ? if self.exam.all_at_once and self.currently_serving == "q":
-        # ?      items = self._get_full_exam_questions()
-        # ?      return items
-        # ? else:
-
-        item = self._get_item(type=self.currently_serving)
-
-        if increment_count:
-            if self.completed_items_count is None:
-                self.completed_items_count = 0
-            else:
-                self.completed_items_count += 1
-
-        # all items of the current type have been completed already; move onto the next type
-        if item is None:
-            self.move_to_next_type()
-            return self.get_next_item(force_next=force_next, increment_count=False)
-
-        self.save()
-        return item
-
-    def _get_item(self, type):
-        """
-        Sets the current item (question or exercise, as per the parameter `type`) as completed
-        and returns a random one among the remaining ones that the user hasn't completed yet
-        """
-        # if this is the first item we're getting or we've gotten as many item for this
-        # category as we wanted to, move onto next category
-        while (
-            self.current_category is None
-            or self.served_for_current_category == self.current_category.amount
-            or self.current_category.amount == 0
-        ):
-            # print("moving")
-            try:
-                self.move_to_next_category()
-            except OutOfCategories:  # we exhausted all the categories; there are no more items to return
-                return None
-
-        verbose_type = "question" if type == "q" else "exercise"
-        verbose_type_plural = verbose_type + "s"
-
-        current_item_attr = f"current_{verbose_type}"
-        completed_items_attr = f"completed_{verbose_type_plural}"
-        available_items_attr = f"available_{verbose_type_plural}"
-
-        if getattr(self, current_item_attr) is not None:
-            # mark current item as completed
-            getattr(self, completed_items_attr).add(
-                getattr(self, current_item_attr),
-                through_defaults={"ordering": self.completed_items_count},
-            )
-            # reset current item
-            setattr(self, current_item_attr, None)
-            self.save()
-
-        # get remaining items of current category
-        available_items = (
-            getattr(self.exam, verbose_type_plural)
-            .filter(category=self.current_category)
-            .exclude(id__in=getattr(self, completed_items_attr).all())
-        )
-
-        if available_items.count() == 0:
-            # user has completed all items of this type
-            return None
-
-        if self.current_category.randomize:
-            available_items = available_items.order_by("?")
-
-        random_item = available_items[0]
-
-        self.served_for_current_category += 1
-        setattr(self, current_item_attr, random_item)
-        self.save()
-        return random_item
-
-
-class ExamCompletedQuestionsThroughModel(models.Model):
+class ExamProgressQuestionsThroughModel(models.Model):
     ordering = models.PositiveIntegerField()
     exam_progress = models.ForeignKey(ExamProgress, on_delete=models.CASCADE)
-    completed_question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
 
     class Meta:
         ordering = ["ordering"]
 
 
-class ExamCompletedExercisesThroughModel(models.Model):
+class ExamProgressExercisesThroughModel(models.Model):
     ordering = models.PositiveIntegerField()
     exam_progress = models.ForeignKey(ExamProgress, on_delete=models.CASCADE)
-    completed_exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE)
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE)
 
     class Meta:
         ordering = ["ordering"]

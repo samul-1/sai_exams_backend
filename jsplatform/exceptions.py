@@ -2,6 +2,14 @@ class SubmissionAlreadyTurnedIn(Exception):
     pass
 
 
+class ExamCompletedException(Exception):
+    pass
+
+
+class DuplicatedAnswerException(Exception):
+    pass
+
+
 class NotEligibleForTurningIn(Exception):
     pass
 

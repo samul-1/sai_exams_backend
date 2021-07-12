@@ -39,17 +39,18 @@ class CategoryAdmin(admin.ModelAdmin):
     pass
 
 
-class CompletedQuestionsInline(admin.TabularInline):
-    model = ExamProgress.completed_questions.through
+class ExamProgressQuestionsInline(admin.TabularInline):
+    model = ExamProgress.questions.through
 
 
-class CompletedExercisesInline(admin.TabularInline):
-    model = ExamProgress.completed_exercises.through
+class ExamProgressExercisesInline(admin.TabularInline):
+    model = ExamProgress.exercises.through
 
 
 @admin.register(ExamProgress)
 class ExamProgressAdmin(admin.ModelAdmin):
-    inlines = [CompletedQuestionsInline, CompletedExercisesInline]
+    pass
+    inlines = [ExamProgressQuestionsInline, ExamProgressExercisesInline]
     # list_display = ("pdf_report",)
     # list_display_links = ("pdf_report",)
     # list_editable = ("pdf_report",)
