@@ -17,6 +17,8 @@ from django.db.models import F, JSONField, Q
 from django.utils import timezone
 from users.models import User
 
+from jsplatform.pdf import preprocess_html_for_csv
+
 from .exceptions import (
     ExamNotOverYet,
     InvalidAnswerException,
@@ -322,6 +324,9 @@ class ExamReport(models.Model):
         upload_to=get_pdf_upload_path, null=True, blank=True
     )
 
+    def __str__(self):
+        return self.exam.name
+
     def save(self, *args, **kwargs):
         now = timezone.localtime(timezone.now())
 
@@ -478,7 +483,9 @@ class ExamReport(models.Model):
                 F("examcompletedquestionsthroughmodel__ordering").asc(nulls_last=True)
             ):
                 question_details = {
-                    f"Domanda { questionCount } testo": question.text
+                    f"Domanda { questionCount } testo": preprocess_html_for_csv(
+                        question.text
+                    )
                 }  # question.text
 
                 given_answers = question.given_answers.filter(user=participant)
@@ -684,6 +691,8 @@ class Exercise(models.Model):
         # todo check that the exercise belongs to a category from the same exam as the exercise
         if self.category is not None and self.category.item_type != "e":
             raise InvalidCategoryType
+
+        # todo change not self.pk to `self.pk is None` here and everywhere else where it appears
         text_changed = not self.pk or (
             self.text != Exercise.objects.get(pk=self.pk).text
         )

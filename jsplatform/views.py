@@ -202,6 +202,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         # get current exam
         exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))  # self.get_object()
 
+        # todo override get_queryset to filter out draft exams, closed, and not-yet-began ones to students
         if exam.begin_timestamp > now:
             return Response(
                 status=status.HTTP_404_NOT_FOUND,
