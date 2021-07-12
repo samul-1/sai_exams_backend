@@ -12,6 +12,9 @@ from .tex import tex_to_svg
 
 
 def preprocess_html_for_csv(html):
+    """
+    Redacts the base64 data for <img> tags
+    """
     ret = re.sub(r'src="([^"]+)"', "", html)
     return ret
 

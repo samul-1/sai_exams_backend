@@ -380,7 +380,10 @@ class ExamReport(models.Model):
         headers = ["Corso", "Email"]
 
         exercise_count = self.exam.exercises.count()
-        question_count = self.exam.questions.count()
+        # ! TODO THIS IS TEMPORARY
+        question_count = (
+            self.exam.get_number_of_items_per_exam()
+        )  # self.exam.questions.count()
 
         for i in range(0, exercise_count):
             headers.append(f"Esercizio JS { i+1 } testo")
