@@ -405,6 +405,11 @@ class AnswerSerializer(serializers.ModelSerializer):
             # show text with TeX rendered as svg instead of the source
             # text to non-teacher users
             self.fields["text"] = serializers.CharField(source="rendered_text")
+            self.fields["is_selected"] = serializers.SerializerMethodField()
+
+    def get_is_selected(self, obj):
+        user = self.context["request"].user
+        return GivenAnswer.objects.filter(user=user, answer=obj).exists()
 
 
 class ExerciseSerializer(serializers.ModelSerializer):

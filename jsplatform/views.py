@@ -229,11 +229,77 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def give_answer(self, request, **kwargs):
-        pass
+        exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
+        user = request.user
+
+        try:
+            exam_progress = ExamProgress.objects.get(user=user, exam=exam)
+        except ExamProgress.DoesNotExist:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        current_question = exam_progress.current_item
+
+        if not isinstance(current_question, Question):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            answer_id = request.data["answer"]
+            answer = Answer.objects.get(pk=answer_id)
+        except (KeyError, Answer.DoesNotExist):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        if current_question.accepts_multiple_answers:
+            try:
+                GivenAnswer.objects.create(
+                    user=user, question=current_question, answer=answer
+                )
+            except InvalidAnswerException:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+        else:
+            try:
+                GivenAnswer.objects.update_or_create(
+                    user=user,
+                    question=current_question,
+                    defaults={"answer": answer},
+                )
+            except InvalidAnswerException:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def withdraw_answer(self, request, **kwargs):
-        pass
+        exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
+        user = request.user
+
+        try:
+            exam_progress = ExamProgress.objects.get(user=user, exam=exam)
+        except ExamProgress.DoesNotExist:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        current_question = exam_progress.current_item
+
+        if not isinstance(current_question, Question):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            answer_id = request.data["answer"]
+            answer = Answer.objects.get(pk=answer_id)
+        except (KeyError, Answer.DoesNotExist):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        if not current_question.accepts_multiple_answers:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            withdrawn_answer = GivenAnswer.objects.get(
+                user=user, question=current_question, answer=answer
+            )
+            withdrawn_answer.delete()
+        except GivenAnswer.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def current_item(self, request, **kwargs):

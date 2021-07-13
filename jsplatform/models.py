@@ -1118,7 +1118,7 @@ class GivenAnswer(models.Model):
     def __str__(self):
         return str(self.question) + " " + str(self.answer)
 
-    def save(self, get_next_item=True, *args, **kwargs):
+    def save(self, *args, **kwargs):
         if self.answer is not None and self.answer not in self.question.answers.all():
             raise InvalidAnswerException
 
@@ -1128,10 +1128,6 @@ class GivenAnswer(models.Model):
             # increment number of selections for selected answer
             self.answer.selections += 1
             self.answer.save()
-        if creating and get_next_item:
-            # get next exam item
-            # !!!
-            self.question.exam.get_item_for(self.user, force_next=True)
 
     # def clean(self):
     #     if self.answer is not None and self.answer.question.pk != self.question.pk:
