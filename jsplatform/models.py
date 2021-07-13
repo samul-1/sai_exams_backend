@@ -143,7 +143,8 @@ class Exam(models.Model):
         return sum(list(map(lambda a: a["amount"], amounts)))
 
     def get_current_progress(self, global_data_only=False):
-        # !!!
+        # !!! rework this - probably need to add a @property in ExamProgress to get the number of answered questions
+        # ! rather than progress_as_decimal
         """
         Returns a dict detailing the current number of participants to the exam and their
         current progress in terms of how many items they've completed
@@ -191,41 +192,26 @@ class Exam(models.Model):
         ret["completed_count"] = completed_count
         return ret
 
-    # ? put this in a logic.py module?
     def get_mock_exam(self, user):
         """
-        Returns a read-only mock exam
+        Returns a couple <questions, exercises> representing a mock exam
         """
         progress = ExamProgress.objects.create(exam=self, user=user)
-        mock = progress.simulate()
+        progress.generate_items()
+
+        # save the m2m fields as lists as the related object will be deleted
+        questions = [q for q in progress.questions.all()]
+        exercises = [e for e in progress.exercises.all()]
+
         progress.delete()
-        return mock
-
-    # ? possibly needs refactoring
-    def get_item_for(self, user, force_next=False):
-        """
-        If called for the first time: creates an ExamProgress object for user and returns a random item for them
-        If called subsequently and `force_next` IS NOT explicitly set to True, returns the current item for the
-        requesting user
-        If called with `force_next` explicitly set to True, returns a random item that the user hasn't completed
-        yet and updates their ExamProgress object
-        If all items of a category (coding exercises or multiple choice questions) have been completed and a new item
-        is requested, the next type of items will be set as the current one if there are any left, or the ExamProgress
-        will be set as COMPLETED and None will be returned
-        """
-
-        # get user's ExamProgress object or create it
-        progress, created = ExamProgress.objects.get_or_create(exam=self, user=user)
-
-        item = progress.get_next_item(force_next=(created or force_next))
-        return item
+        return (questions, exercises)
 
     def get_all_items(self):
         questions = []
         exercises = []
 
         for question in self.questions.order_by("category__pk", "pk"):
-            questions.append(question.format_for_pdf())
+            questions.append(question)
 
         # todo process exercises
 
@@ -715,14 +701,16 @@ class ExamProgress(models.Model):
     questions = models.ManyToManyField(
         Question,
         through="ExamProgressQuestionsThroughModel",
-        related_name="question_completed_in_exams",
+        related_name="question_assigned_in_exams",
         blank=True,
     )
+
+    # todo add started_at and ended_at
 
     exercises = models.ManyToManyField(
         Exercise,
         through="ExamProgressExercisesThroughModel",
-        related_name="completed_in_exams",
+        related_name="exercise_assigned_in_exams",
         blank=True,
     )
 
@@ -768,14 +756,14 @@ class ExamProgress(models.Model):
             # ? raise exception?
             return
 
-        item_count = 0
-        # for each category, add `category.amount` questions to `self.questions`, incrementing
-        # `item_count` at each iteration. follow randomization rules etc.
         question_categories = self.exam.categories.filter(item_type="q")
         if self.exam.randomize_questions:
             question_categories = question_categories.order_by("?")
 
         item_count = 0
+
+        # for each category, add `category.amount` questions to `self.questions`, incrementing
+        # `item_count` at each iteration. follow randomization rules etc.
         for category in question_categories:
             items = category.questions.all()
             if category.randomize:
@@ -817,6 +805,7 @@ class ExamProgress(models.Model):
         return self.current_item
 
     def get_progress_as_dict(self):
+        # todo make a serializer for this
         """
         Returns the user's seen questions/exercises and the given answers and submitted solutions as a dict
         that can be used to generate a pdf (it gets passed as context to the template that is rendered to pdf)
@@ -896,8 +885,8 @@ class ExamProgress(models.Model):
         # todo handle cases of people with same full name
         self.pdf_report.save("%s.pdf" % self.user.full_name, (pdf_binary))
 
-    # ? put this in a logic.py module?
     def simulate(self):
+        # todo you don't need this anymore - delete this, and change the corresponding view accordingly
         """
         Returns a mock exam in the form of a list of questions and one of exercises, representing
         what an instance of the exam could look like with the given exam settings
@@ -907,7 +896,9 @@ class ExamProgress(models.Model):
 
         while (item := self.get_next_item(force_next=True)) is not None:
             if isinstance(item, Question):
-                questions.append(item.format_for_pdf())
+                questions.append(
+                    item.format_for_pdf()
+                )  # ! this needs attention before deleting the method
             else:
                 exercises.append(item)  # todo format_for_pdf
 
@@ -1072,6 +1063,7 @@ class Submission(models.Model):
 
         # mark exercise as completed and update ExamProgress' current exercise to a random new exercise
         # todo this needs to go away
+        # !!!
         self.exercise.exam.get_item_for(self.user, force_next=True)
 
 
@@ -1138,6 +1130,7 @@ class GivenAnswer(models.Model):
             self.answer.save()
         if creating and get_next_item:
             # get next exam item
+            # !!!
             self.question.exam.get_item_for(self.user, force_next=True)
 
     # def clean(self):

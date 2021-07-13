@@ -71,27 +71,27 @@ class QuestionViewSet(viewsets.ModelViewSet):
         """
         Restricts the queryset so users can only see their current question
         """
-        if self.request.user.is_teacher:
-            return super(QuestionViewSet, self).get_queryset()
-
-        now = timezone.localtime(timezone.now())
-
-        # get exams that are currently in progress
-        exams = Exam.objects.filter(begin_timestamp__lte=now, end_timestamp__gt=now)
-
-        # get ExamProgress objects for this user for each exam
-        progress_objects = ExamProgress.objects.filter(
-            exam__in=exams, user=self.request.user, current_question__isnull=False
-        )
-
         # get default queryset
         queryset = super(QuestionViewSet, self).get_queryset()
 
-        # get questions that appear as `current_question` in one of the ExamProgress object
-        queryset = queryset.filter(
-            pk__in=list(map(lambda p: p.current_question.pk, progress_objects))
-        )
-        return queryset.prefetch_related("answers")
+        # todo fix
+        # if not self.request.user.is_teacher:
+        #     now = timezone.localtime(timezone.now())
+        #     # get exams that are currently in progress
+        #     exams = Exam.objects.filter(
+        #         begin_timestamp__lte=now, closed=False, draft=False
+        #     )
+
+        #     # get ExamProgress objects for this user for each exam
+        #     progress_objects = ExamProgress.objects.filter(
+        #         exam__in=exams, user=self.request.user
+        #     )
+
+        #     # get questions that appear as `current_question` in one of the ExamProgress object
+        #     queryset = queryset.filter(
+        #         pk__in=list(map(lambda p: p.current_question.pk, progress_objects))
+        #     )
+        return queryset
 
 
 class ExamViewSet(viewsets.ModelViewSet):
@@ -117,14 +117,48 @@ class ExamViewSet(viewsets.ModelViewSet):
     # only allow teachers to access exams' data
     permission_classes = [TeachersOnly]
     # limit exam access for a user to those created by them or to which they've been granted access
-    # filter_backends = [filters.ExamCreatorAndAllowed, OrderingFilter]
+    filter_backends = [filters.ExamCreatorAndAllowed, OrderingFilter]
     renderer_classes = tuple(api_settings.DEFAULT_RENDERER_CLASSES) + (ReportRenderer,)
     ordering = ["pk"]
+
+    def get_queryset(self):
+        """
+        Restricts the queryset so non-teacher users can only see exams in progress
+        """
+        queryset = super(ExamViewSet, self).get_queryset()
+        if not self.request.user.is_teacher:
+            now = timezone.localtime(timezone.now())
+            # filter for exams that are currently in progress
+            queryset = queryset.filter(begin_timestamp__lte=now, draft=False)
+
+        return queryset
+
+    def get_student_serializer_context(self, request, item):
+        """
+        Returns a dictionary to be passed as context to an ExamSerializer
+        """
+        context = {
+            "request": request,
+        }
+
+        # determine if the item retrieved is a programming exercise or a question
+        if isinstance(item, Exercise):
+            # retrieve user's submissions to this exercise and send them along
+            student_submissions = item.submissions.filter(user=request.user)
+            context["submissions"] = student_submissions
+            context["exercise"] = item
+        else:
+            context["question"] = item
+
+        return context
 
     def update(self, request, pk=None):
         exam = self.get_object()
         if exam.locked_by is not None and request.user != exam.locked_by:
-            return Response(status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                status=status.HTTP_403_FORBIDDEN,
+                data={"message": "È in corso una modifica da un altro insegnante."},
+            )
 
         return super(ExamViewSet, self).update(request)
 
@@ -140,6 +174,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()  # get_object_or_404(Exam, pk=kwargs.pop("pk"))
         questions, exercises = exam.get_mock_exam(user=request.user)
 
+        # probably export the logic in this method (and in `all_items`) to a separate module
         mock_pdf = render_to_pdf(
             template_name,
             {
@@ -147,8 +182,8 @@ class ExamViewSet(viewsets.ModelViewSet):
                     "name": exam.name,
                     "begin_timestamp": exam.begin_timestamp,
                 },
-                "questions": questions,
-                "exercises": exercises,
+                "questions": [q.format_for_pdf() for q in questions],
+                "exercises": [e.format_for_pdf() for e in exercises],
             },
         )
 
@@ -169,8 +204,8 @@ class ExamViewSet(viewsets.ModelViewSet):
                     "name": exam.name,
                     "begin_timestamp": exam.begin_timestamp,
                 },
-                "questions": questions,
-                "exercises": exercises,
+                "questions": [q.format_for_pdf() for q in questions],
+                "exercises": [e.format_for_pdf() for e in exercises],
             },
         )
 
@@ -184,30 +219,56 @@ class ExamViewSet(viewsets.ModelViewSet):
         """
 
         exam = self.get_object()
+
+        # with this query parameter, the specific info for each participant isn't fetched
+        # and only general data about the average progress (et similia) is returned
         global_only = "global_only" in request.query_params
         data = exam.get_current_progress(global_data_only=global_only)
 
-        return Response(data)
+        return Response(status=status.HTTP_200_OK, data=data)
+
+    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    def give_answer(self, request, **kwargs):
+        pass
+
+    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    def withdraw_answer(self, request, **kwargs):
+        pass
+
+    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    def current_item(self, request, **kwargs):
+        # get current exam
+        exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
+
+        if exam.closed:
+            return Response(
+                status=status.HTTP_410_GONE,
+                data={"message": "L'esame è terminato"},
+            )
+
+        # this is the first entry point that the frontend will call upon a student entering
+        # an exam for the first time, so the student's ExamProgress might not exist yet and
+        # thus needs to be created
+        exam_progress, _ = ExamProgress.objects.get_or_create(
+            user=request.user, exam=exam
+        )
+        item = exam_progress.current_item
+
+        assert item is not None
+
+        context = self.get_student_serializer_context(request, item)
+
+        serializer = ExamSerializer(instance=exam, context=context, **kwargs)
+        return Response(serializer.data)
 
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def next_item(self, request, **kwargs):
-        # todo extract
-        now = timezone.localtime(timezone.now())
-
         # get current exam
-        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))
-        # exam = self.get_object()
+        exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
 
-        # todo override get_queryset to filter out draft exams, closed, and not-yet-began ones to students
-        if exam.begin_timestamp > now:
+        if exam.closed:
             return Response(
-                status=status.HTTP_404_NOT_FOUND,
-                data={"message": "L'esame non è  ancora iniziato"},
-            )
-
-        if exam.closed:  # exam.end_timestamp <= now:
-            return Response(
-                status=status.HTTP_404_NOT_FOUND,
+                status=status.HTTP_410_GONE,
                 data={"message": "L'esame è terminato"},
             )
 
@@ -216,43 +277,19 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         assert item is not None
 
-        print(item)
-
-        context = {
-            "request": request,
-        }
-
-        # determine if the item retrieved is a programming exercise or a question
-        if isinstance(item, Exercise):
-            # retrieve user's submissions to this exercise and send them along
-            student_submissions = item.submissions.filter(user=request.user)
-            context["submissions"] = student_submissions
-            context["exercise"] = item
-        else:
-            context["question"] = item
+        context = self.get_student_serializer_context(request, item)
 
         serializer = ExamSerializer(instance=exam, context=context, **kwargs)
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def previous_item(self, request, **kwargs):
-        # todo extract
-        now = timezone.localtime(timezone.now())
-
         # get current exam
-        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))
-        # exam = self.get_object()
+        exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
 
-        # todo override get_queryset to filter out draft exams, closed, and not-yet-began ones to students
-        if exam.begin_timestamp > now:
+        if exam.closed:
             return Response(
-                status=status.HTTP_404_NOT_FOUND,
-                data={"message": "L'esame non è  ancora iniziato"},
-            )
-
-        if exam.closed:  # exam.end_timestamp <= now:
-            return Response(
-                status=status.HTTP_404_NOT_FOUND,
+                status=status.HTTP_410_GONE,
                 data={"message": "L'esame è terminato"},
             )
 
@@ -261,83 +298,13 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         assert item is not None
 
-        print(item)
-
-        context = {
-            "request": request,
-        }
-
-        # determine if the item retrieved is a programming exercise or a question
-        if isinstance(item, Exercise):
-            # retrieve user's submissions to this exercise and send them along
-            student_submissions = item.submissions.filter(user=request.user)
-            context["submissions"] = student_submissions
-            context["exercise"] = item
-        else:
-            context["question"] = item
-
-        serializer = ExamSerializer(instance=exam, context=context, **kwargs)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
-    def current_item(self, request, **kwargs):
-        # todo rewrite below comment
-        """
-        Assigns an exercise from active exam to user if they haven't been assigned one yet;
-        returns that exercise
-
-        Only students can access this (access from teachers returns 403)
-        """
-        # todo extract
-        now = timezone.localtime(timezone.now())
-
-        # get current exam
-        exam = get_object_or_404(Exam, pk=kwargs.pop("pk"))
-        # exam = self.get_object()
-
-        # todo override get_queryset to filter out draft exams, closed, and not-yet-began ones to students
-        if exam.begin_timestamp > now:
-            return Response(
-                status=status.HTTP_404_NOT_FOUND,
-                data={"message": "L'esame non è  ancora iniziato"},
-            )
-
-        if exam.closed:  # exam.end_timestamp <= now:
-            return Response(
-                status=status.HTTP_404_NOT_FOUND,
-                data={"message": "L'esame è terminato"},
-            )
-
-        exam_progress, _ = ExamProgress.objects.get_or_create(
-            user=request.user, exam=exam
-        )
-        item = exam_progress.current_item
-
-        assert item is not None
-
-        print(item)
-
-        context = {
-            "request": request,
-        }
-
-        # determine if the item retrieved is a programming exercise or a question
-        if isinstance(item, Exercise):
-            # retrieve user's submissions to this exercise and send them along
-            student_submissions = item.submissions.filter(user=request.user)
-            context["submissions"] = student_submissions
-            context["exercise"] = item
-        else:
-            print("WE'RE HERE")
-            context["question"] = item
+        context = self.get_student_serializer_context(request, item)
 
         serializer = ExamSerializer(instance=exam, context=context, **kwargs)
         return Response(serializer.data)
 
     @action(detail=True, methods=["patch"])
     def terminate(self, request, **kwargs):
-        now = timezone.localtime(timezone.now())
-
         exam = self.get_object()
         exam.close_exam(closed_by=request.user)
 
@@ -351,9 +318,10 @@ class ExamViewSet(viewsets.ModelViewSet):
     def zip_archive(self, request, **kwargs):
         exam = self.get_object()
         report, _ = ExamReport.objects.get_or_create(exam=exam)
-        # todo make a get_or_create function for zip archives
+
         if not report.zip_report_archive:
             report.generate_zip_archive()
+
         filename = report.zip_report_archive.name.split("/")[-1]
         return FileResponse(
             report.zip_report_archive, as_attachment=True, filename=filename
@@ -407,7 +375,7 @@ class ExerciseViewSet(viewsets.ModelViewSet):
         now = timezone.localtime(timezone.now())
 
         # get exams that are currently in progress
-        exams = Exam.objects.filter(begin_timestamp__lte=now, end_timestamp__gt=now)
+        exams = Exam.objects.filter(begin_timestamp__lte=now, closed=False)
 
         # get ExamProgress objects for this user for each exam
         progress_objects = ExamProgress.objects.filter(
@@ -502,6 +470,7 @@ class GivenAnswerViewSet(viewsets.ModelViewSet):
             given_answer.save(get_next_item=False)
 
         # move onto next item
+        # !!!
         question.exam.get_item_for(request.user, force_next=True)
 
         return Response(status=status.HTTP_200_OK)
