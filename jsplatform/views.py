@@ -1,6 +1,7 @@
 import json
 
 from core import constants
+from django.db.utils import IntegrityError
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -232,7 +233,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 GivenAnswer.objects.create(
                     user=user, question=current_question, answer=answer
                 )
-            except InvalidAnswerException:
+            except (InvalidAnswerException, IntegrityError):
                 return Response(status=status.HTTP_400_BAD_REQUEST)
         else:
             try:
@@ -282,7 +283,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             )
             withdrawn_answer.delete()
         except GivenAnswer.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
 
         return Response(status=status.HTTP_200_OK)
 

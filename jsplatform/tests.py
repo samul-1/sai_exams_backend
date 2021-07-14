@@ -1,14 +1,27 @@
 import json
 
+from _datetime import timedelta
+from django.db import transaction
 from django.test import TestCase
-from rest_framework.test import APIRequestFactory, force_authenticate
+from django.utils import timezone
+from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
+from users.models import User
 
-from jsplatform.models import Exercise, Submission
+from jsplatform.exceptions import ExamCompletedException
+from jsplatform.models import (
+    Answer,
+    Category,
+    Exam,
+    ExamProgress,
+    Exercise,
+    GivenAnswer,
+    Question,
+    Submission,
+)
 from jsplatform.models import (
     TestCase as TestCase_,
 )  # prevent name conflict with django TestCase class
-from jsplatform.models import User
-from jsplatform.views import ExerciseViewSet, SubmissionViewSet
+from jsplatform.views import ExamViewSet, ExerciseViewSet, SubmissionViewSet
 
 
 class ExerciseViewSetTestCase(TestCase):
@@ -495,4 +508,331 @@ class ExamTestCase(TestCase):
     the ExamViewSet for exposing the correct items to users
     """
 
-    pass
+    def setUp(self):
+        now = timezone.localtime(timezone.now())
+        tomorrow = now + timedelta(days=1)
+
+        self.student1 = User.objects.create(
+            username="student1", email="student1@studenti.unipi.it"
+        )
+        self.student2 = User.objects.create(
+            username="student2", email="student2@studenti.unipi.it"
+        )
+
+        self.teacher = User.objects.create(username="teacher", email="teacher@unipi.it")
+
+        self.exam = Exam.objects.create(
+            name="Test exam", begin_timestamp=now, end_timestamp=tomorrow, draft=False
+        )
+
+        cat1 = Category.objects.create(
+            exam=self.exam, name="cat1", amount=3, item_type="q", randomize=False
+        )
+        self.q1 = Question.objects.create(
+            exam=self.exam, text="question1", category=cat1
+        )
+        self.q2 = Question.objects.create(
+            exam=self.exam,
+            text="question1",
+            category=cat1,
+            accepts_multiple_answers=True,
+        )
+        self.q3 = Question.objects.create(
+            exam=self.exam, text="question1", category=cat1
+        )
+
+        self.q1a1 = Answer.objects.create(question=self.q1, text="abc")
+        self.q1a2 = Answer.objects.create(question=self.q1, text="abc")
+        self.q1a3 = Answer.objects.create(question=self.q1, text="abc")
+        self.q2a1 = Answer.objects.create(question=self.q2, text="abc")
+        self.q2a2 = Answer.objects.create(question=self.q2, text="abc")
+        self.q2a3 = Answer.objects.create(question=self.q2, text="abc")
+
+        self.max_cursor_value = self.exam.get_number_of_items_per_exam() - 1
+
+    def get_post_request(self, api_url, body):
+        factory = APIRequestFactory()
+        return factory.post(api_url, body, format="json")
+
+    def test_exam_progress_generation_and_cursor(self):
+        """
+        Tests the ability of ExamProgress to assign items to a user and to
+        expose a single item identified by its `current_item_cursor`
+        """
+
+        exam_progress = ExamProgress.objects.create(user=self.student1, exam=self.exam)
+        self.assertTrue(exam_progress.is_initialized)
+        self.assertTrue(self.q1 in exam_progress.questions.all())
+        self.assertTrue(self.q2 in exam_progress.questions.all())
+        self.assertTrue(self.q3 in exam_progress.questions.all())
+
+        self.assertFalse(exam_progress.is_there_previous)
+        self.assertEqual(exam_progress.current_item_cursor, 0)
+        self.assertEqual(exam_progress.current_item, self.q1)
+
+        self.assertEqual(exam_progress.move_cursor_forward(), self.q2)
+        self.assertEqual(exam_progress.current_item_cursor, 1)
+        self.assertTrue(exam_progress.is_there_previous)
+
+        self.assertEqual(exam_progress.move_cursor_back(), self.q1)
+        self.assertEqual(exam_progress.current_item_cursor, 0)
+
+        # trying to go back past the first item has no effect
+        self.assertEqual(exam_progress.move_cursor_back(), self.q1)
+        self.assertEqual(exam_progress.current_item_cursor, 0)
+
+        self.assertEqual(exam_progress.move_cursor_forward(), self.q2)
+        self.assertEqual(exam_progress.current_item_cursor, 1)
+        self.assertTrue(exam_progress.is_there_next)
+
+        self.assertEqual(exam_progress.move_cursor_forward(), self.q3)
+        self.assertEqual(exam_progress.current_item_cursor, 2)
+
+        # trying to go forward past the last item has no effect
+        self.assertFalse(exam_progress.is_there_next)
+        self.assertEqual(exam_progress.move_cursor_forward(), self.q3)
+        self.assertEqual(exam_progress.current_item_cursor, 2)
+
+        exam_progress.end_exam()
+        self.assertTrue(exam_progress.is_done)
+
+        # can't move cursor anymore once the exam is over
+        with self.assertRaises(ExamCompletedException):
+            exam_progress.move_cursor_back()
+
+        with self.assertRaises(ExamCompletedException):
+            exam_progress.move_cursor_forward()
+
+    def test_exam_access(self):
+        # show that accessing an exam fails if unauthenticated, or if the exam is closed or hasn't started yet, etc.
+        pass
+
+    def test_exam_viewset_student(self):
+        # exam_progress = ExamProgress.objects.create(user=self.student2, exam=self.exam)
+
+        client = APIClient()
+        client.force_authenticate(user=self.student2)
+
+        # battery 1 - tests going forward and back
+
+        response = client.post(f"/exams/{self.exam.pk}/current_item/", {})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["question"]["id"], 1)
+
+        # trying to go back past the first item has no effect and keeps returning the first item
+        response = client.post(f"/exams/{self.exam.pk}/previous_item/", {})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["question"]["id"], 1)
+
+        response = client.post(f"/exams/{self.exam.pk}/next_item/", {})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["question"]["id"], 2)
+
+        response = client.post(f"/exams/{self.exam.pk}/next_item/", {})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["question"]["id"], 3)
+
+        # trying to go past the last item has no effect and keeps returning the last item
+        response = client.post(f"/exams/{self.exam.pk}/next_item/", {})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["question"]["id"], 3)
+
+        response = client.post(f"/exams/{self.exam.pk}/previous_item/", {})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["question"]["id"], 2)
+
+        response = client.post(f"/exams/{self.exam.pk}/previous_item/", {})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["question"]["id"], 1)
+
+        # battery 2 - tests giving answers
+
+        # give an answer
+        response = client.post(
+            f"/exams/{self.exam.pk}/give_answer/",
+            {
+                "answer": self.q1a1.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            GivenAnswer.objects.filter(user=self.student2, question=self.q1).count(), 1
+        )
+
+        given_ans1 = GivenAnswer.objects.get(user=self.student2, question=self.q1)
+        self.assertEqual(
+            given_ans1.answer,
+            self.q1a1,
+        )
+
+        # give another answer to the same question - the question doesn't accept
+        # multiple answers, therefore the same GivenAnswer gets updated
+        response = client.post(
+            f"/exams/{self.exam.pk}/give_answer/",
+            {
+                "answer": self.q1a2.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            GivenAnswer.objects.filter(user=self.student2, question=self.q1).count(), 1
+        )
+        # it's still the same object...
+        given_ans2 = GivenAnswer.objects.get(user=self.student2, question=self.q1)
+        self.assertEqual(given_ans2, given_ans1)
+        # ... but its answer has been updated
+        self.assertEqual(given_ans2.answer, self.q1a2)
+
+        # try to give an answer that doesn't exist
+        response = client.post(
+            f"/exams/{self.exam.pk}/give_answer/",
+            {
+                "answer": 99999,
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        # the object hasn't been touched
+        self.assertEqual(
+            GivenAnswer.objects.get(user=self.student2, question=self.q1).answer,
+            self.q1a2,
+        )
+
+        # try to give an answer that is valid but refers to another question (not the current item)
+        response = client.post(
+            f"/exams/{self.exam.pk}/give_answer/",
+            {
+                "answer": self.q2a1.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        # the object hasn't been touched
+        self.assertEqual(
+            GivenAnswer.objects.get(user=self.student2, question=self.q1).answer,
+            self.q1a2,
+        )
+
+        response = client.post(f"/exams/{self.exam.pk}/next_item/", {})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["question"]["id"], 2)
+
+        # current question accepts multiple answers
+
+        # create first answer
+        response = client.post(
+            f"/exams/{self.exam.pk}/give_answer/",
+            {
+                "answer": self.q2a1.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            GivenAnswer.objects.filter(user=self.student2, question=self.q2).count(), 1
+        )
+        # hitting `give_answer` will create a second GivenAnswer this time, because the
+        # current question accepts multiple answers
+        response = client.post(
+            f"/exams/{self.exam.pk}/give_answer/",
+            {
+                "answer": self.q2a2.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            GivenAnswer.objects.filter(user=self.student2, question=self.q2).count(), 2
+        )
+
+        given_ans_lst = list(
+            map(
+                lambda e: e.answer,
+                GivenAnswer.objects.filter(user=self.student2, question=self.q2),
+            )
+        )
+        # both answers have been recorded
+        self.assertListEqual([self.q2a1, self.q2a2], given_ans_lst)
+
+        # trying to add the same answer twice results in error 400
+        with transaction.atomic():  # this is needed to prevent weird behavior during unit tests
+            response = client.post(
+                f"/exams/{self.exam.pk}/give_answer/",
+                {
+                    "answer": self.q2a2.pk,
+                },
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            GivenAnswer.objects.filter(user=self.student2, question=self.q2).count(), 2
+        )
+
+        # now withdraw a given answer
+        response = client.post(
+            f"/exams/{self.exam.pk}/withdraw_answer/",
+            {
+                "answer": self.q2a2.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            GivenAnswer.objects.filter(user=self.student2, question=self.q2).count(), 1
+        )
+        self.assertEqual(
+            self.q2a1,
+            GivenAnswer.objects.get(user=self.student2, question=self.q2).answer,
+        )
+
+        # try to withdraw an answer that doesn't exist and an answer that wasn't given
+        response = client.post(
+            f"/exams/{self.exam.pk}/withdraw_answer/",
+            {
+                "answer": 99999,
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        response = client.post(
+            f"/exams/{self.exam.pk}/withdraw_answer/",
+            {
+                "answer": self.q2a2.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
+        # battery 3 - exam gets closed, test that no action can be performed
+
+        self.exam.close_exam(closed_by=self.teacher)
+        self.assertTrue(self.exam.closed)
+
+        exam_progress = ExamProgress.objects.get(exam=self.exam, user=self.student2)
+        curr_cursor_val = exam_progress.current_item_cursor
+
+        response = client.post(f"/exams/{self.exam.pk}/current_item/", {})
+        self.assertEqual(response.status_code, 410)
+
+        response = client.post(f"/exams/{self.exam.pk}/previous_item/", {})
+        self.assertEqual(response.status_code, 410)
+
+        # current item cursor hasn't moved
+        exam_progress.refresh_from_db()
+        self.assertEqual(curr_cursor_val, exam_progress.current_item_cursor)
+
+        response = client.post(f"/exams/{self.exam.pk}/next_item/", {})
+        self.assertEqual(response.status_code, 410)
+
+        # current item cursor hasn't moved
+        exam_progress.refresh_from_db()
+        self.assertEqual(curr_cursor_val, exam_progress.current_item_cursor)
+
+        # answers cannot be given or withdrawn anymore
+        response = client.post(
+            f"/exams/{self.exam.pk}/give_answer/",
+            {
+                "answer": self.q2a2.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 410)
+
+        response = client.post(
+            f"/exams/{self.exam.pk}/withdraw_answer/",
+            {
+                "answer": self.q2a1.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 410)

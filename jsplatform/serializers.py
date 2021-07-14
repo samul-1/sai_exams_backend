@@ -231,15 +231,12 @@ class ExamSerializer(serializers.ModelSerializer):
 
     def get_question(self, obj):
         try:
-            print("IN TRY")
             return QuestionSerializer(
                 instance=self.context["question"],
                 context={"request": self.context["request"]},
             ).data
             # todo use proper exception
         except Exception as e:
-            print("IN EXCEPT")
-            raise e
             return None
 
     def get_submissions(self, obj):

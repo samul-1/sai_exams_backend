@@ -6,6 +6,7 @@ from io import BytesIO
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from core import constants
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
@@ -898,7 +899,7 @@ class ExamProgress(models.Model):
         Generate a pdf file containing the seen questions/exercises from this user and the given answers
         or submitted solutions
         """
-        template_name = "exam_pdf_report.html"
+        template_name = constants.PDF_REPORT_TEMPLATE_NAME
         # get the pdf file's binary data
         pdf_binary = render_to_pdf(template_name, self.get_progress_as_dict())
 
@@ -1135,6 +1136,16 @@ class GivenAnswer(models.Model):
     # used if the referenced question is an open-ended one
     text = models.TextField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            # we can't enforce uniqueness of the couple <user, question_id> at db level, because
+            # some questions accept multiple answers - we can however make sure, that the
+            # same *answer* doesn't somehow end up being given multiple times by the same user
+            models.UniqueConstraint(
+                fields=["user", "answer_id"], name="same_user_same_answer_unique"
+            )
+        ]
 
     def __str__(self):
         return str(self.question) + " " + str(self.answer)
