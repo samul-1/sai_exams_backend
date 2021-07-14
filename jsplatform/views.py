@@ -1,5 +1,6 @@
 import json
 
+from core import constants
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -63,35 +64,10 @@ class QuestionViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = QuestionSerializer
+    permission_classes = [TeachersOnly]
     queryset = (
         Question.objects.all().select_related("category").prefetch_related("answers")
     )
-
-    def get_queryset(self):
-        """
-        Restricts the queryset so users can only see their current question
-        """
-        # get default queryset
-        queryset = super(QuestionViewSet, self).get_queryset()
-
-        # todo fix
-        # if not self.request.user.is_teacher:
-        #     now = timezone.localtime(timezone.now())
-        #     # get exams that are currently in progress
-        #     exams = Exam.objects.filter(
-        #         begin_timestamp__lte=now, closed=False, draft=False
-        #     )
-
-        #     # get ExamProgress objects for this user for each exam
-        #     progress_objects = ExamProgress.objects.filter(
-        #         exam__in=exams, user=self.request.user
-        #     )
-
-        #     # get questions that appear as `current_question` in one of the ExamProgress object
-        #     queryset = queryset.filter(
-        #         pk__in=list(map(lambda p: p.current_question.pk, progress_objects))
-        #     )
-        return queryset
 
 
 class ExamViewSet(viewsets.ModelViewSet):
@@ -168,8 +144,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         Returns a mock exam representing a simulation of the requested exam, showing a possible combination of questions
         that could be picked according to the exam settings.
         """
-        # todo make a constants.py file for stuff like this
-        template_name = "exam_pdf_report.html"
+        template_name = constants.PDF_REPORT_TEMPLATE_NAME
 
         exam = self.get_object()  # get_object_or_404(Exam, pk=kwargs.pop("pk"))
         questions, exercises = exam.get_mock_exam(user=request.user)
@@ -191,8 +166,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def all_items(self, request, **kwargs):
-        # todo make a constants.py file for stuff like this
-        template_name = "exam_pdf_report.html"
+        template_name = constants.PDF_REPORT_TEMPLATE_NAME
 
         exam = self.get_object()
         questions, exercises = exam.get_all_items()
@@ -234,9 +208,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         if exam.closed:
             return Response(
                 status=status.HTTP_410_GONE,
-                data={
-                    "message": "L'esame è terminato. Tutte le risposte sono state salvate."
-                },
+                data={"message": constants.MSG_EXAM_OVER},
             )
 
         try:
@@ -280,9 +252,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         if exam.closed:
             return Response(
                 status=status.HTTP_410_GONE,
-                data={
-                    "message": "L'esame è terminato. Tutte le risposte sono state salvate."
-                },
+                data={"message": constants.MSG_EXAM_OVER},
             )
 
         user = request.user
@@ -304,7 +274,6 @@ class ExamViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         if not current_question.accepts_multiple_answers:
-            # todo add check to see if user is withdrawing an answer from a question other than the current one
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         try:
@@ -325,9 +294,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         if exam.closed:
             return Response(
                 status=status.HTTP_410_GONE,
-                data={
-                    "message": "L'esame è terminato. Tutte le risposte sono state salvate."
-                },
+                data={"message": constants.MSG_EXAM_OVER},
             )
 
         # this is the first entry point that the frontend will call upon a student entering
@@ -356,9 +323,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         if exam.closed:
             return Response(
                 status=status.HTTP_410_GONE,
-                data={
-                    "message": "L'esame è terminato. Tutte le risposte sono state salvate."
-                },
+                data={"message": constants.MSG_EXAM_OVER},
             )
 
         exam_progress = get_object_or_404(ExamProgress, exam=exam, user=request.user)
@@ -382,9 +347,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         if exam.closed:
             return Response(
                 status=status.HTTP_410_GONE,
-                data={
-                    "message": "L'esame è terminato. Tutte le risposte sono state salvate."
-                },
+                data={"message": constants.MSG_EXAM_OVER},
             )
         if not exam.allow_going_back:
             return Response(status=status.HTTP_403_FORBIDDEN)
@@ -404,12 +367,15 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def end_exam(self, request, **kwargs):
+        """
+        Reached by a student when they are done with their exam
+        """
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
 
         if exam.closed:
             return Response(
                 status=status.HTTP_410_GONE,
-                data={"message": "L'esame è terminato"},
+                data={"message": constants.MSG_EXAM_OVER},
             )
 
         exam_progress = get_object_or_404(ExamProgress, exam=exam, user=request.user)
@@ -419,6 +385,9 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["patch"])
     def terminate(self, request, **kwargs):
+        """
+        Used by a teacher to close the exam for everybody
+        """
         exam = self.get_object()
         exam.close_exam(closed_by=request.user)
 
@@ -504,90 +473,6 @@ class ExerciseViewSet(viewsets.ModelViewSet):
             pk__in=list(map(lambda p: p.current_exercise.pk, progress_objects))
         )
         return queryset
-
-
-class GivenAnswerViewSet(viewsets.ModelViewSet):
-    serializer_class = GivenAnswerSerializer
-    queryset = GivenAnswer.objects.all()
-    # todo can probably use TeacherOrWriteOnly permission class -- test this
-    # ! add filter to prevent accessing other people's answers
-
-    # def dispatch(self, request, *args, **kwargs):
-    #     # this method prevents users from accessing `questions/id/given_answers` for questions
-    #     # they don't have permission to see
-    #     parent_view = QuestionViewSet.as_view({"get": "retrieve"})
-    #     original_method = request.method
-
-    #     # get the corresponding question
-    #     request.method = "GET"
-    #     parent_kwargs = {"pk": kwargs["question_pk"]}
-
-    #     parent_response = parent_view(request, *args, **parent_kwargs)
-    #     if parent_response.exception:
-    #         # user tried accessing a question they didn't have permission to view
-    #         return parent_response
-
-    #    request.method = original_method
-    #    return super().dispatch(request, *args, **kwargs)
-
-    def get_queryset(self):
-        queryset = super(GivenAnswerViewSet, self).get_queryset()
-
-        question_id = self.kwargs["question_pk"]
-        user_id = self.request.query_params.get("user_id", None)
-
-        # filter given answers for given question
-        if question_id is not None:
-            question = get_object_or_404(Question, pk=question_id)
-            queryset = queryset.filter(question=question)
-
-        # filter given answers for given user
-        if user_id is not None:
-            user = get_object_or_404(User, pk=user_id)
-            queryset = queryset.filter(user=user)
-
-        return queryset
-
-    def create(self, request, **kwargs):
-        try:
-            return super(GivenAnswerViewSet, self).create(request, **kwargs)
-        except InvalidAnswerException:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-
-    def perform_create(self, serializer):
-        question_id = self.kwargs["question_pk"]
-
-        question = get_object_or_404(Question, pk=question_id)
-
-        serializer.save(question=question, user=self.request.user)
-
-    @action(detail=False, methods=["post"])
-    def multiple(self, request, pk=None, **kwargs):
-        """
-        Creates multiple answers to a question
-        """
-        question_id = self.kwargs["question_pk"]
-        question = get_object_or_404(Question, pk=question_id)
-
-        answer_pks = request.data["answer"]
-        if len(answer_pks) == 0:
-            given_answer = GivenAnswer(
-                user=request.user, question=question, answer=None
-            )
-            given_answer.save(get_next_item=False)
-        # todo transaction
-        for answer_pk in answer_pks:
-            answer = get_object_or_404(Answer, pk=answer_pk)
-            given_answer = GivenAnswer(
-                user=request.user, question=question, answer=answer
-            )
-            given_answer.save(get_next_item=False)
-
-        # move onto next item
-        # !!!
-        question.exam.get_item_for(request.user, force_next=True)
-
-        return Response(status=status.HTTP_200_OK)
 
 
 class SubmissionViewSet(viewsets.ModelViewSet):

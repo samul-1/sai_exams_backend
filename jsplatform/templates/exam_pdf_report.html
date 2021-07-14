@@ -108,12 +108,12 @@ iVBORw0KGgoAAAANSUhEUgAAAR4AAAEkCAYAAAD5KF4dAAAACXBIWXMAAAsTAAALEwEAmpwYAAAgAElE
               <!--<div
                 class="{% if question.accepts_multiple_answers %}div-checkbox{% else %}div-radio{% endif %} {% if answer.selected %}div-checked{% endif %}">.</div>-->
                 {% if answer.selected %}
-                <img style="margin-left: 3px; margin-right: 5px" src="data:image/png;base64,
-                iVBORw0KGgoAAAANSUhEUgAAABEAAAAQCAYAAADwMZRfAAAABHNCSVQICAgIfAhkiAAAABl0RVh0U29mdHdhcmUAZ25vbWUtc2NyZWVuc2hvdO8Dvz4AAAAndEVYdENyZWF0aW9uIFRpbWUAZG9tIDEzIGdpdSAyMDIxLCAxOToyNjozOATXFDsAAAD8SURBVDiNrZQhcwIxEIW/YxDggmwNNyARIJCIqEqKQwIKexYHprZIJLUY8Ij+AWZaBBowWA537hA7x9FeODIDUS/J7Ldv32TihGEY8uDKPAoAyEZisYHREn4P94vcAnw2oVWRvRON437A3rfvXnuFH0/0ZZx7AJWD737c/dqxdSbjJugyTNvJOyuI14BOXbSeWEJULta6JCEC9Gbm4BOQbh22AwnOLcC8I+dfK5iuzE6z/w+8Bqi8hLg7il4foDszA4xO9ESKVF7cnAJzDqkQP4hBEdQP0iGJca5Bumz3gi9OiioJWmxuF1ZfDJDx+9+LtFVUMHyL984zvoIzL8tIZK9qvJQAAAAASUVORK5CYII="
+                <img style="width:12.5px; margin-left: 3px; margin-right: 5px" src="data:image/png;base64,
+                iVBORw0KGgoAAAANSUhEUgAAABEAAAAQCAYAAADwMZRfAAABHUlEQVQ4T63ToU/DQBTH8e9zBLVJmNgCloSSgEPsL4BgQFIJriPBgwCD2PgPasEMDWYCBwldAh4EIFfFcI8cx8p2aXdpsur3Pvfu9XfCDD6ZgUGGdJ9VT+8g+fCzjSq0t2BnRX77M6R+pvqW+oFRRbAISctBOFadRlTmoLsPl/dw8/JXeVESiXch3LBN2YFlkGgTOtsWCNqq2d6mIWb09NuO3FyC3qEFwivV+HHs0kVIuA7xnog5MR3CUwTVeZH4QTW8drZWhCQRBDWRwZfq6wDWaiLJu2rQyVl7EWKu0juwkGlLh6qN8//rTVC+nYygiUW6w/j+jpmouTyWibwQuUjZxK4uQP/ICZt5Oye30P/0R79eMbnJeTv+1uKKHyNLdRF9I3N3AAAAAElFTkSuQmCC"
                 />
                 {% elif user %}
-                <img style="margin-left: 3px; margin-right: 5px" src="data:image/png;base64,
-                iVBORw0KGgoAAAANSUhEUgAAAA8AAAAPCAYAAAA71pVKAAAABHNCSVQICAgIfAhkiAAAABl0RVh0U29mdHdhcmUAZ25vbWUtc2NyZWVuc2hvdO8Dvz4AAAAndEVYdENyZWF0aW9uIFRpbWUAZG9tIDEzIGdpdSAyMDIxLCAxOToyNjo1M8VfajUAAACSSURBVCiRxZOxDQMhEASHk6Nrg3Yoge74DqCdb+PCXwcWDizb+seBJzqhHbFCXJIkFrnNYds2IoJ93z+Gc864O7XWx4EktdbUe9cZeu9qrUmSDCAiKKWcqlpKISIAMOBr1XfMvF2yXrBj8bEPCbOU1m5N6cfa/5VzzpekmTcAd2eMcUocY+DuAKS5GCt/+ymvcAeJMG3k0KoAswAAAABJRU5ErkJggg=="/>
+                <img style="width: 12px; margin-left: 3px; margin-right: 5px" src="data:image/png;base64,
+                iVBORw0KGgoAAAANSUhEUgAAAA8AAAAPCAYAAAA71pVKAAAAkUlEQVQ4T2NkoAAwwvQuXrz4/7dv3xju3r2L0zhlZWUGLi4uhtjYWLA+MAHSKCAgwODg4EDQHQcOHGD48OED2ACw5pkzZ/6PiooiqBGmYNmyZQzp6ekQzWVlZf9ra2uJ1tzc3MzQ1dVFoea///79r6yoYCDV5vaODkiADYyzB9ZmiuKZohQGS6JkpW2ikxaaQgA19WoI2THabgAAAABJRU5ErkJggg=="/>
                 {% endif %}
               {{ answer.text }} 
               <!--{% if answer.is_right_answer %}CORRETTA{%else%} SBAGLIATA {%endif%} - -->
