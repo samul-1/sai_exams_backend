@@ -35,6 +35,7 @@ class ExamSerializer(serializers.ModelSerializer):
             "draft",
             "begin_timestamp",
             "end_timestamp",
+            "allow_going_back",
         ]
 
     def __init__(self, *args, **kwargs):
@@ -61,6 +62,9 @@ class ExamSerializer(serializers.ModelSerializer):
             self.fields["exercise"] = serializers.SerializerMethodField()
             self.fields["submissions"] = serializers.SerializerMethodField()
             self.fields["question"] = serializers.SerializerMethodField()
+            self.fields["ordering"] = serializers.SerializerMethodField()
+            self.fields["is_first_item"] = serializers.SerializerMethodField()
+            self.fields["is_last_item"] = serializers.SerializerMethodField()
 
     def create(self, validated_data):
         questions = validated_data.pop("questions")
@@ -253,6 +257,18 @@ class ExamSerializer(serializers.ModelSerializer):
         # todo see if you can just use a ReadOnlyField
         return obj.locked_by.full_name if obj.locked_by is not None else None
 
+    def get_ordering(self, obj):
+        user = self.context["request"].user
+        return obj.participations.get(user=user).current_item_cursor
+
+    def get_is_first_item(self, obj):
+        user = self.context["request"].user
+        return not obj.participations.get(user=user).is_there_previous
+
+    def get_is_last_item(self, obj):
+        user = self.context["request"].user
+        return not obj.participations.get(user=user).is_there_next
+
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -326,7 +342,7 @@ class QuestionSerializer(serializers.ModelSerializer):
         # ! keep an eye on this
         self.fields["id"] = serializers.IntegerField(required=False)
         self.fields["introduction"] = serializers.ReadOnlyField(
-            source="category.introduction_text"
+            source="category.rendered_introduction_text"
         )
         # used to temporarily reference a newly created category from the frontend
         self.fields["category_uuid"] = serializers.UUIDField(

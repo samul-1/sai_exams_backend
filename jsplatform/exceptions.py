@@ -6,6 +6,10 @@ class ExamCompletedException(Exception):
     pass
 
 
+class NoGoingBackException(Exception):
+    pass
+
+
 class DuplicatedAnswerException(Exception):
     pass
 

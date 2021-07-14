@@ -12,7 +12,7 @@ def svg2img(html: str) -> str:
     """
 
     SVG_ELEM_RE = re.compile(r"<svg.*?</svg>", flags=re.MULTILINE | re.DOTALL)
-    B64IMG_TMPL = '<img src="data:image/svg+xml;base64,{img_text}"/>'
+    B64IMG_TMPL = '<img class="inline" src="data:image/svg+xml;base64,{img_text}"/>'
     SVG_XMLNS = (
         'xmlns="http://www.w3.org/2000/svg" '
         + 'xmlns:xlink="http://www.w3.org/1999/xlink" '

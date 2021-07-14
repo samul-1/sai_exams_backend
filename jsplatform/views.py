@@ -231,6 +231,13 @@ class ExamViewSet(viewsets.ModelViewSet):
     def give_answer(self, request, **kwargs):
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
         user = request.user
+        if exam.closed:
+            return Response(
+                status=status.HTTP_410_GONE,
+                data={
+                    "message": "L'esame è terminato. Tutte le risposte sono state salvate."
+                },
+            )
 
         try:
             exam_progress = ExamProgress.objects.get(user=user, exam=exam)
@@ -270,6 +277,14 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
     def withdraw_answer(self, request, **kwargs):
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
+        if exam.closed:
+            return Response(
+                status=status.HTTP_410_GONE,
+                data={
+                    "message": "L'esame è terminato. Tutte le risposte sono state salvate."
+                },
+            )
+
         user = request.user
 
         try:
@@ -289,6 +304,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         if not current_question.accepts_multiple_answers:
+            # todo add check to see if user is withdrawing an answer from a question other than the current one
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         try:
@@ -309,7 +325,9 @@ class ExamViewSet(viewsets.ModelViewSet):
         if exam.closed:
             return Response(
                 status=status.HTTP_410_GONE,
-                data={"message": "L'esame è terminato"},
+                data={
+                    "message": "L'esame è terminato. Tutte le risposte sono state salvate."
+                },
             )
 
         # this is the first entry point that the frontend will call upon a student entering
@@ -318,6 +336,9 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam_progress, _ = ExamProgress.objects.get_or_create(
             user=request.user, exam=exam
         )
+        if exam_progress.is_done:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
         item = exam_progress.current_item
 
         assert item is not None
@@ -335,10 +356,15 @@ class ExamViewSet(viewsets.ModelViewSet):
         if exam.closed:
             return Response(
                 status=status.HTTP_410_GONE,
-                data={"message": "L'esame è terminato"},
+                data={
+                    "message": "L'esame è terminato. Tutte le risposte sono state salvate."
+                },
             )
 
         exam_progress = get_object_or_404(ExamProgress, exam=exam, user=request.user)
+        if exam_progress.is_done:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
         item = exam_progress.move_cursor_forward()
 
         assert item is not None
@@ -356,10 +382,17 @@ class ExamViewSet(viewsets.ModelViewSet):
         if exam.closed:
             return Response(
                 status=status.HTTP_410_GONE,
-                data={"message": "L'esame è terminato"},
+                data={
+                    "message": "L'esame è terminato. Tutte le risposte sono state salvate."
+                },
             )
+        if not exam.allow_going_back:
+            return Response(status=status.HTTP_403_FORBIDDEN)
 
         exam_progress = get_object_or_404(ExamProgress, exam=exam, user=request.user)
+
+        if exam_progress.is_done:
+            return Response(status=status.HTTP_204_NO_CONTENT)
         item = exam_progress.move_cursor_back()
 
         assert item is not None
@@ -368,6 +401,21 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         serializer = ExamSerializer(instance=exam, context=context, **kwargs)
         return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    def end_exam(self, request, **kwargs):
+        exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
+
+        if exam.closed:
+            return Response(
+                status=status.HTTP_410_GONE,
+                data={"message": "L'esame è terminato"},
+            )
+
+        exam_progress = get_object_or_404(ExamProgress, exam=exam, user=request.user)
+        exam_progress.end_exam()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["patch"])
     def terminate(self, request, **kwargs):

@@ -17,7 +17,7 @@ from django.db.models import F, JSONField, Q
 from django.utils import timezone
 from users.models import User
 
-from jsplatform.exceptions import ExamCompletedException
+from jsplatform.exceptions import ExamCompletedException, NoGoingBackException
 from jsplatform.pdf import preprocess_html_for_csv
 
 from .exceptions import (
@@ -97,6 +97,7 @@ class Exam(models.Model):
         limit_choices_to={"is_teacher": True},
         related_name="exams_referred_by",
     )
+    allow_going_back = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["pk"]
@@ -721,6 +722,9 @@ class ExamProgress(models.Model):
     is_done = models.BooleanField(default=False)
     is_initialized = models.BooleanField(default=False)
 
+    begun_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return f"{self.user.full_name} - {self.exam}"
 
@@ -741,7 +745,6 @@ class ExamProgress(models.Model):
     @property
     def current_item(self):
         try:
-            # return self.questions.get(ordering=self.current_item_cursor)
             return ExamProgressQuestionsThroughModel.objects.get(
                 exam_progress=self, ordering=self.current_item_cursor
             ).question
@@ -749,7 +752,14 @@ class ExamProgress(models.Model):
             return ExamProgressExercisesThroughModel.objects.get(
                 exam_progress=self, ordering=self.current_item_cursor
             ).exercise
-            # return self.exercises.get(ordering=self.current_item_cursor)
+
+    @property
+    def is_there_previous(self):
+        return self.current_item_cursor > 0
+
+    @property
+    def is_there_next(self):
+        return self.current_item_cursor < self.exam.get_number_of_items_per_exam() - 1
 
     def generate_items(self):
         if self.is_initialized:
@@ -782,10 +792,21 @@ class ExamProgress(models.Model):
         self.is_initialized = True
         self.save()
 
+    def end_exam(self):
+        if self.is_done:
+            return
+
+        now = timezone.localtime(timezone.now())
+        self.ended_at = now
+        self.is_done = True
+        self.save()
+
     def move_cursor_back(self):
+        if not self.exam.allow_going_back:
+            raise NoGoingBackException
         if self.is_done:
             raise ExamCompletedException
-        if self.current_item_cursor > 0:
+        if self.is_there_previous:
             self.current_item_cursor -= 1
             self.save()
 
@@ -798,7 +819,7 @@ class ExamProgress(models.Model):
         #     self.is_done = True  # ? should we do this somewhere else?
         #     self.save()
         #     return None
-        if self.current_item_cursor < self.exam.get_number_of_items_per_exam() - 1:
+        if self.is_there_next:
             self.current_item_cursor += 1
             self.save()
 
