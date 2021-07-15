@@ -350,11 +350,23 @@ class QuestionSerializer(serializers.ModelSerializer):
             # show text with TeX rendered as svg instead of the source
             # text to non-teacher users
             self.fields["text"] = serializers.CharField(source="rendered_text")
+            self.fields["answer_text"] = serializers.SerializerMethodField()
 
     def get_text(self, obj):
         return (
             obj.text if self.context["request"].user.is_teacher else obj.rendered_text
         )
+
+    def get_answer_text(self, obj):
+        if obj.question_type != "o":
+            return ""
+
+        try:
+            return GivenAnswer.objects.get(
+                question=obj, user=self.context["request"].user
+            ).text
+        except GivenAnswer.DoesNotExist:
+            return ""
 
     def create(self, validated_data):
         answers = validated_data.pop("answers")

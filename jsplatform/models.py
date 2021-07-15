@@ -789,6 +789,26 @@ class ExamProgress(models.Model):
                 through_row.save()
                 item_count += 1
 
+        # exercise_categories = self.exam.categories.filter(item_type="e")
+        # if self.exam.randomize_exercises:
+        #     exercise_categories = exercise_categories.order_by("?")
+
+        # # for each category, add `category.amount` questions to `self.questions`, incrementing
+        # # `item_count` at each iteration. follow randomization rules etc.
+        # for category in exercise_categories:
+        #     items = category.questions.all()
+        #     if category.randomize:
+        #         items = items.order_by("?")
+
+        #     items = items[: category.amount]
+
+        #     for item in items:
+        #         through_row = ExamProgressExercisesThroughModel(
+        #             exam_progress=self, question=item, ordering=item_count
+        #         )
+        #         through_row.save()
+        #         item_count += 1
+
         # todo do the same for exercises
         self.is_initialized = True
         self.save()

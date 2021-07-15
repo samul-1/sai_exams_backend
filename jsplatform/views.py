@@ -222,28 +222,39 @@ class ExamViewSet(viewsets.ModelViewSet):
         if not isinstance(current_question, Question):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            answer_id = request.data["answer"]
-            answer = Answer.objects.get(pk=answer_id)
-        except (KeyError, Answer.DoesNotExist):
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-
-        if current_question.accepts_multiple_answers:
+        if current_question.question_type == "o":  # open question
             try:
-                GivenAnswer.objects.create(
-                    user=user, question=current_question, answer=answer
-                )
-            except (InvalidAnswerException, IntegrityError):
-                return Response(status=status.HTTP_400_BAD_REQUEST)
-        else:
-            try:
+                text = request.data["text"]
                 GivenAnswer.objects.update_or_create(
                     user=user,
                     question=current_question,
-                    defaults={"answer": answer},
+                    defaults={"text": text},
                 )
-            except InvalidAnswerException:
+            except KeyError:
                 return Response(status=status.HTTP_400_BAD_REQUEST)
+        else:
+            try:
+                answer_id = request.data["answer"]
+                answer = Answer.objects.get(pk=answer_id)
+            except (KeyError, Answer.DoesNotExist):
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+
+            if current_question.accepts_multiple_answers:
+                try:
+                    GivenAnswer.objects.create(
+                        user=user, question=current_question, answer=answer
+                    )
+                except (InvalidAnswerException, IntegrityError):
+                    return Response(status=status.HTTP_400_BAD_REQUEST)
+            else:
+                try:
+                    GivenAnswer.objects.update_or_create(
+                        user=user,
+                        question=current_question,
+                        defaults={"answer": answer},
+                    )
+                except InvalidAnswerException:
+                    return Response(status=status.HTTP_400_BAD_REQUEST)
 
         return Response(status=status.HTTP_200_OK)
 
