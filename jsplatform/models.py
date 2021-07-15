@@ -14,7 +14,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import models
-from django.db.models import F, JSONField, Q
+from django.db.models import Count, Exists, F, JSONField, OuterRef, Q
 from django.utils import timezone
 from users.models import User
 
@@ -165,13 +165,9 @@ class Exam(models.Model):
         }
 
         for participant in participants:
-            # perc_progress = participant.get_progress_percentage()
-            participant_progress = (
-                participant.completed_items_count
-                if participant.completed_items_count is not None
-                else 0
-            )
-            progress_sum += participant_progress  # perc_progress
+            participant_progress = participant.completed_items_count
+            progress_sum += participant_progress
+
             if participant_progress == total_items_count:
                 completed_count += 1
 
@@ -182,7 +178,7 @@ class Exam(models.Model):
                         "email": participant.user.email,
                         "full_name": participant.user.full_name,
                         "course": participant.user.course,
-                        "progress": participant_progress,  # perc_progress,
+                        "progress": participant_progress,
                     }
                 )
 
@@ -736,12 +732,16 @@ class ExamProgress(models.Model):
             self.generate_items()
 
     @property
-    def progress_as_decimal(self):
-        """
-        Return a float with two decimal digits representing the percentage of completion of the
-        exam in terms of completed items vs total items in the exam
-        """
-        pass
+    def completed_items_count(self):
+        exists_given_answer = GivenAnswer.objects.filter(
+            user=self.user, question=OuterRef("pk")
+        )
+        return (
+            self.questions.all()
+            .annotate(given_answer_exists=Exists(exists_given_answer))
+            .filter(given_answer_exists=True)
+            .count()
+        )
 
     @property
     def current_item(self):
