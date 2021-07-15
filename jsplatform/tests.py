@@ -604,7 +604,12 @@ class ExamTestCase(TestCase):
             exam_progress.move_cursor_forward()
 
     def test_exam_access(self):
-        # show that accessing an exam fails if unauthenticated, or if the exam is closed or hasn't started yet, etc.
+        # shows that accessing an exam fails if unauthenticated, or if the exam is closed or hasn't started yet, etc.
+        pass
+
+    def test_progress_and_stats(self):
+        # shows that as exam participants answer question, their `completed_items_count` increases, and that when
+        # an answer is selected by a user, its `selections` count increases
         pass
 
     def test_exam_viewset_student(self):

@@ -574,9 +574,9 @@ class Question(models.Model):
         # todo check that question belongs to a category that is from the same exam as the question
         if self.category is not None and self.category.item_type != "q":
             raise InvalidCategoryType
-        text_changed = not self.pk or (
-            self.text != Question.objects.get(pk=self.pk).text
-        )
+        text_changed = False  # not self.pk or (
+        #     self.text != Question.objects.get(pk=self.pk).text
+        # )
 
         super(Question, self).save(*args, **kwargs)
 

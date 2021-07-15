@@ -330,14 +330,17 @@ class QuestionSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super(QuestionSerializer, self).__init__(*args, **kwargs)
         self.fields["answers"] = AnswerSerializer(many=True, **kwargs)
-        # self.fields["text"] = serializers.SerializerMethodField()
+
         # todo limit categories to those of the same exam as the question's
         self.fields["category"] = serializers.PrimaryKeyRelatedField(
             queryset=Category.objects.all(), required=False
         )
         self.fields["category_name"] = serializers.ReadOnlyField(source="category.name")
-        # ! keep an eye on this
+
+        # this is needed because questions aren't added or updated via their own url, but rather inside of an exam,
+        # therefore the id needs to be explicitly specified in order to target the correct object
         self.fields["id"] = serializers.IntegerField(required=False)
+
         self.fields["introduction"] = serializers.ReadOnlyField(
             source="category.rendered_introduction_text"
         )
@@ -382,6 +385,14 @@ class QuestionSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # get data about answers
         answers_data = validated_data.pop("answers")
+
+        # TODO
+        # ! check this out -- this should be the way to prevent someone from doing bad stuff by sending another id
+        # ! test this
+        # if "id" in validated_data:
+        #     print("IS IN")
+        #     del validated_data["id"]
+
         # update question instance
         instance = super(QuestionSerializer, self).update(instance, validated_data)
 
