@@ -1122,7 +1122,7 @@ class Answer(models.Model):
     is_right_answer = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    selections = models.PositiveIntegerField(default=0)
+    # selections = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return self.text
@@ -1133,6 +1133,10 @@ class Answer(models.Model):
         if render_tex and text_changed:
             self.rendered_text = tex_to_svg(self.text)
             self.save(render_tex=False)
+
+    @property
+    def selections(self):
+        return GivenAnswer.objects.filter(answer=self).count()
 
 
 class GivenAnswer(models.Model):
@@ -1174,12 +1178,12 @@ class GivenAnswer(models.Model):
         if self.answer is not None and self.answer not in self.question.answers.all():
             raise InvalidAnswerException
 
-        creating = not self.pk  # see if the objects exists already or is being created
+        # creating = not self.pk  # see if the objects exists already or is being created
         super(GivenAnswer, self).save(*args, **kwargs)  # create the object
-        if creating and self.answer is not None:
-            # increment number of selections for selected answer
-            self.answer.selections += 1
-            self.answer.save()
+        # if creating and self.answer is not None:
+        #     # increment number of selections for selected answer
+        #     self.answer.selections += 1
+        #     self.answer.save()
 
     # def clean(self):
     #     if self.answer is not None and self.answer.question.pk != self.question.pk:
