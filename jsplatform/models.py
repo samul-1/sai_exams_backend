@@ -541,10 +541,8 @@ class Question(models.Model):
         return self.text[:100]
 
     def save(self, render_tex=True, *args, **kwargs):
-        if (
-            self.category is not None
-            and self.category.item_type != "q"
-            or self.category.exam != self.exam
+        if self.category is not None and (
+            self.category.item_type != "q" or self.category.exam != self.exam
         ):
             raise InvalidCategoryType
         text_changed = not self.pk or (
@@ -569,7 +567,6 @@ class Question(models.Model):
         """
         return self.category.rendered_introduction_text
 
-    # ? probably better in a separate module
     def format_for_pdf(self):
         return {
             "text": preprocess_html_for_pdf(self.rendered_text),
@@ -617,10 +614,8 @@ class Exercise(models.Model):
         return self.text
 
     def save(self, render_tex=True, *args, **kwargs):
-        if (
-            self.category is not None
-            and self.category.item_type != "e"
-            or self.category.exam != self.exam
+        if self.category is not None and (
+            self.category.item_type != "e" or self.category.exam != self.exam
         ):
             raise InvalidCategoryType
 
@@ -699,6 +694,9 @@ class ExamProgress(models.Model):
 
     @property
     def completed_items_count(self):
+        # returns the number of questions assigned to `self` referenced by at least
+        # one GivenAnswer from this user (there could be more if the question
+        # accepts multiple answers)
         exists_given_answer = GivenAnswer.objects.filter(
             user=self.user, question=OuterRef("pk")
         )
@@ -730,7 +728,6 @@ class ExamProgress(models.Model):
 
     def generate_items(self):
         if self.is_initialized:
-            # ? raise exception?
             return
 
         question_categories = self.exam.categories.filter(item_type="q")
@@ -782,10 +779,7 @@ class ExamProgress(models.Model):
     def move_cursor_forward(self):
         if self.is_done:
             raise ExamCompletedException
-        # if self.current_item_cursor == self.exam.number_of_items - 1:
-        #     self.is_done = True  # ? should we do this somewhere else?
-        #     self.save()
-        #     return None
+
         if self.is_there_next:
             self.current_item_cursor += 1
             self.save()
@@ -793,7 +787,6 @@ class ExamProgress(models.Model):
         return self.current_item
 
     def get_progress_as_dict(self):
-        # todo make a serializer for this
         """
         Returns the user's seen questions/exercises and the given answers and submitted solutions as a dict
         that can be used to generate a pdf (it gets passed as context to the template that is rendered to pdf)

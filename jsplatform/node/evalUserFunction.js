@@ -3,7 +3,7 @@
 //     timeout: 1000,
 // })
 
-// // TODO move to its own file
+// //  move to its own file
 // // used to serialize errors in user program
 // var stringifyError = function(err, filter, space) {
 //     var plainObject = {};
@@ -12,7 +12,6 @@
 //     });
 //     return JSON.stringify(plainObject, filter, space);
 //   };
-
 
 // user_program = process.argv[2]
 

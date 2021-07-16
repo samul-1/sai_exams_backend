@@ -47,7 +47,6 @@ class FrontendErrorViewSet(viewsets.ModelViewSet):
     serializer_class = FrontendErrorSerializer
     queryset = FrontendError.objects.all()
     permission_classes = [IsTeacherOrWriteOnly]
-    # todo add permissions to prevent users from accessing the errors
 
     def perform_create(self, serializer):
         if not self.request.user.is_anonymous:
@@ -447,7 +446,6 @@ class ExamViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["post"])
-    # todo rename to csv_report
     def report(self, request, **kwargs):
         exam = self.get_object()
         report, _ = ExamReport.objects.get_or_create(exam=exam)

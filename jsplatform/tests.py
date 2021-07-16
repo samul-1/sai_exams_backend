@@ -476,26 +476,25 @@ class SubmissionViewSetTestCase(TestCase):
         self.assertEqual(response.status_code, 403)
 
         # eligible submissions can be turned in
-        # todo this should work again once line 1228 of models.py has been taken care of
-        # request = factory.put(
-        #     "/exercises/1/submissions/2/turn_in",
-        # )
-        # force_authenticate(request, user=student)
-        # response = view(request, exercise_pk=1, pk=2)
-        # self.assertEqual(response.status_code, 200)
+        request = factory.put(
+            "/exercises/1/submissions/2/turn_in",
+        )
+        force_authenticate(request, user=student)
+        response = view(request, exercise_pk=1, pk=2)
+        self.assertEqual(response.status_code, 200)
 
-        # # no more submissions can be turned in
-        # eligible_submission_2 = Submission.objects.create(
-        #     code="function max(a,b) { return a>b?a:b }",
-        #     exercise=exercise,
-        #     user=student,
-        # )
-        # request = factory.put(
-        #     "/exercises/1/submissions/3/turn_in",
-        # )
-        # force_authenticate(request, user=student)
-        # response = view(request, exercise_pk=1, pk=3)
-        # self.assertEqual(response.status_code, 403)
+        # no more submissions can be turned in
+        eligible_submission_2 = Submission.objects.create(
+            code="function max(a,b) { return a>b?a:b }",
+            exercise=exercise,
+            user=student,
+        )
+        request = factory.put(
+            "/exercises/1/submissions/3/turn_in",
+        )
+        force_authenticate(request, user=student)
+        response = view(request, exercise_pk=1, pk=3)
+        self.assertEqual(response.status_code, 403)
 
 
 class QuestionViewSetTestCase(TestCase):
@@ -611,7 +610,8 @@ class ExamTestCase(TestCase):
 
     def test_exam_access(self):
         # todo - test that a student cannot PUT/POST an exam, that a teacher cannot access an
-        # todo - exam as a student, etc.
+        #  exam as a student, etc.
+
         # shows that accessing an exam fails if unauthenticated, or if the exam is closed or hasn't started yet, etc.
         client = APIClient()
 
@@ -754,6 +754,15 @@ class ExamTestCase(TestCase):
         response = client.post(f"/exams/{self.exam.pk}/previous_item/", {})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["question"]["id"], 2)
+
+        # if going back is disallowed, trying to call the entry point fails
+        self.exam.allow_going_back = False
+        self.exam.save()
+        response = client.post(f"/exams/{self.exam.pk}/previous_item/", {})
+        self.assertEqual(response.status_code, 403)
+
+        self.exam.allow_going_back = True
+        self.exam.save()
 
         response = client.post(f"/exams/{self.exam.pk}/previous_item/", {})
         self.assertEqual(response.status_code, 200)

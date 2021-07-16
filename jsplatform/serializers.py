@@ -6,17 +6,8 @@ from rest_framework import serializers
 from users.models import User
 from users.serializers import UserSerializer
 
-from .models import (
-    Answer,
-    Category,
-    Exam,
-    Exercise,
-    FrontendError,
-    GivenAnswer,
-    Question,
-    Submission,
-    TestCase,
-)
+from .models import (Answer, Category, Exam, Exercise, FrontendError,
+                     GivenAnswer, Question, Submission, TestCase)
 
 
 class FrontendErrorSerializer(serializers.ModelSerializer):
@@ -225,8 +216,7 @@ class ExamSerializer(serializers.ModelSerializer):
                 instance=self.context["exercise"],
                 context={"request": self.context["request"]},
             ).data
-            # todo use proper exception
-        except Exception:
+        except KeyError:
             return None
 
     def get_question(self, obj):
@@ -235,8 +225,7 @@ class ExamSerializer(serializers.ModelSerializer):
                 instance=self.context["question"],
                 context={"request": self.context["request"]},
             ).data
-            # todo use proper exception
-        except Exception as e:
+        except KeyError:
             return None
 
     def get_submissions(self, obj):
@@ -246,8 +235,7 @@ class ExamSerializer(serializers.ModelSerializer):
                 context={"request": self.context["request"]},
                 many=True,
             ).data
-            # todo use proper exception
-        except Exception:
+        except KeyError:
             return None
 
     def get_locked_by(self, obj):
@@ -331,7 +319,6 @@ class QuestionSerializer(serializers.ModelSerializer):
         super(QuestionSerializer, self).__init__(*args, **kwargs)
         self.fields["answers"] = AnswerSerializer(many=True, **kwargs)
 
-        # todo limit categories to those of the same exam as the question's
         self.fields["category"] = serializers.PrimaryKeyRelatedField(
             queryset=Category.objects.all(), required=False
         )
@@ -385,13 +372,6 @@ class QuestionSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # get data about answers
         answers_data = validated_data.pop("answers")
-
-        # TODO
-        # ! check this out -- this should be the way to prevent someone from doing bad stuff by sending another id
-        # ! test this
-        # if "id" in validated_data:
-        #     print("IS IN")
-        #     del validated_data["id"]
 
         # update question instance
         instance = super(QuestionSerializer, self).update(instance, validated_data)
@@ -478,7 +458,6 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
         if self.context["request"].user.is_teacher:
             self.fields["testcases"] = TestCaseSerializer(many=True)
-            # !
             self.fields["id"] = serializers.IntegerField(required=False)
         else:
             # only show public test cases to non-staff users
