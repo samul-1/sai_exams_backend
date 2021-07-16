@@ -518,6 +518,9 @@ class ExamTestCase(TestCase):
         self.student2 = User.objects.create(
             username="student2", email="student2@studenti.unipi.it"
         )
+        self.student3 = User.objects.create(
+            username="student3", email="student3@studenti.unipi.it"
+        )
 
         self.teacher = User.objects.create(username="teacher", email="teacher@unipi.it")
 
@@ -547,6 +550,9 @@ class ExamTestCase(TestCase):
         self.q2a1 = Answer.objects.create(question=self.q2, text="abc")
         self.q2a2 = Answer.objects.create(question=self.q2, text="abc")
         self.q2a3 = Answer.objects.create(question=self.q2, text="abc")
+        self.q3a1 = Answer.objects.create(question=self.q3, text="abc")
+        self.q3a2 = Answer.objects.create(question=self.q3, text="abc")
+        self.q3a3 = Answer.objects.create(question=self.q3, text="abc")
 
         self.max_cursor_value = self.exam.get_number_of_items_per_exam() - 1
 
@@ -604,13 +610,116 @@ class ExamTestCase(TestCase):
             exam_progress.move_cursor_forward()
 
     def test_exam_access(self):
+        # todo - test that a student cannot PUT/POST an exam, that a teacher cannot access an
+        # todo - exam as a student, etc.
         # shows that accessing an exam fails if unauthenticated, or if the exam is closed or hasn't started yet, etc.
-        pass
+        client = APIClient()
+
+        # no authentication
+        response = client.post(f"/exams/{self.exam.pk}/current_item/", {})
+        self.assertEqual(response.status_code, 403)
+        response = client.post(f"/exams/{self.exam.pk}/previous_item/", {})
+        self.assertEqual(response.status_code, 403)
+        response = client.post(f"/exams/{self.exam.pk}/next_item/", {})
+        self.assertEqual(response.status_code, 403)
+        response = client.post(f"/exams/{self.exam.pk}/give_answer/", {})
+        self.assertEqual(response.status_code, 403)
+        response = client.post(f"/exams/{self.exam.pk}/withdraw_answer/", {})
+        self.assertEqual(response.status_code, 403)
+
+        # auth'd as a student
+        client.force_authenticate(user=self.student1)
+
+        # trying to go back or forward before creating the ExamProgress object
+        # through `current_item` doesn't work either
+        client.force_authenticate(user=self.student1)
+        response = client.post(f"/exams/{self.exam.pk}/previous_item/", {})
+        self.assertEqual(response.status_code, 404)
+        response = client.post(f"/exams/{self.exam.pk}/next_item/", {})
+        self.assertEqual(response.status_code, 404)
+        # this will work because we're authenticated
+        response = client.post(f"/exams/{self.exam.pk}/current_item/", {})
+        self.assertEqual(response.status_code, 200)
+
+        # students can't close an exam
+        response = client.patch(f"/exams/{self.exam.pk}/terminate/", {})
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(self.exam.closed, False)
 
     def test_progress_and_stats(self):
         # shows that as exam participants answer question, their `completed_items_count` increases, and that when
         # an answer is selected by a user, its `selections` count increases
-        pass
+        cat2 = Category.objects.create(
+            exam=self.exam, name="cat2", amount=2, item_type="q", randomize=False
+        )
+        q4multiple_answers = Question.objects.create(
+            exam=self.exam,
+            text="question4",
+            category=cat2,
+            accepts_multiple_answers=True,
+        )
+        q4a1 = Answer.objects.create(question=q4multiple_answers, text="abc")
+        q4a2 = Answer.objects.create(question=q4multiple_answers, text="abc")
+        q4a3 = Answer.objects.create(question=q4multiple_answers, text="abc")
+
+        exam_progress = ExamProgress.objects.create(user=self.student3, exam=self.exam)
+
+        # let's make sure the tests pass even when there's more than one user taking
+        # the exam and with the same assigned items
+        student4 = User.objects.create(
+            username="student4", email="student4@studenti.unipi.it"
+        )
+        ExamProgress.objects.create(user=student4, exam=self.exam)
+        student5 = User.objects.create(
+            username="student5", email="student5@studenti.unipi.it"
+        )
+        ExamProgress.objects.create(user=student5, exam=self.exam)
+
+        self.assertEqual(exam_progress.completed_items_count, 0)
+        self.assertEqual(self.q3a1.selections, 0)
+        self.assertEqual(self.q3a2.selections, 0)
+        self.assertEqual(self.q3a3.selections, 0)
+
+        GivenAnswer.objects.create(
+            user=self.student3, question=self.q3, answer=self.q3a1
+        )
+        # answering a question increases the count of completed items
+        self.assertEqual(exam_progress.completed_items_count, 1)
+        # it also increases the amount of selections of the chosen answer
+        self.assertEqual(self.q3a1.selections, 1)
+        self.assertEqual(self.q3a2.selections, 0)
+        self.assertEqual(self.q3a3.selections, 0)
+
+        g1 = GivenAnswer.objects.create(
+            user=self.student3, question=q4multiple_answers, answer=q4a1
+        )
+        self.assertEqual(exam_progress.completed_items_count, 2)
+        self.assertEqual(q4a1.selections, 1)
+        self.assertEqual(q4a2.selections, 0)
+        self.assertEqual(q4a3.selections, 0)
+        g2 = GivenAnswer.objects.create(
+            user=self.student3, question=q4multiple_answers, answer=q4a2
+        )
+        # selecting multiple answers for a question that accepts multiple answers doesn't
+        # increase the count of completed items more than once
+        self.assertEqual(exam_progress.completed_items_count, 2)
+        self.assertEqual(q4a1.selections, 1)
+        self.assertEqual(q4a2.selections, 1)
+        self.assertEqual(q4a3.selections, 0)
+
+        g1.delete()
+        # completed items count doesn't go down because there's still a selected
+        # answer for the question
+        self.assertEqual(exam_progress.completed_items_count, 2)
+        self.assertEqual(q4a1.selections, 0)
+        self.assertEqual(q4a2.selections, 1)
+        self.assertEqual(q4a3.selections, 0)
+
+        g2.delete()
+        self.assertEqual(exam_progress.completed_items_count, 1)
+        self.assertEqual(q4a1.selections, 0)
+        self.assertEqual(q4a2.selections, 0)
+        self.assertEqual(q4a3.selections, 0)
 
     def test_exam_viewset_student(self):
         # exam_progress = ExamProgress.objects.create(user=self.student2, exam=self.exam)

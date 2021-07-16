@@ -66,7 +66,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = QuestionSerializer
-    permission_classes = [TeachersOnly]
+    permission_classes = [IsAuthenticated, TeachersOnly]
     queryset = (
         Question.objects.all().select_related("category").prefetch_related("answers")
     )
@@ -93,7 +93,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         )
     )
     # only allow teachers to access exams' data
-    permission_classes = [TeachersOnly]
+    permission_classes = [IsAuthenticated, TeachersOnly]
     # limit exam access for a user to those created by them or to which they've been granted access
     filter_backends = [filters.ExamCreatorAndAllowed, OrderingFilter]
     renderer_classes = tuple(api_settings.DEFAULT_RENDERER_CLASSES) + (ReportRenderer,)
@@ -104,7 +104,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         Restricts the queryset so non-teacher users can only see exams in progress
         """
         queryset = super(ExamViewSet, self).get_queryset()
-        if not self.request.user.is_teacher:
+        if self.request.user.is_anonymous or not self.request.user.is_teacher:
             now = timezone.localtime(timezone.now())
             # filter for exams that are currently in progress
             queryset = queryset.filter(begin_timestamp__lte=now, draft=False)
@@ -203,7 +203,11 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         return Response(status=status.HTTP_200_OK, data=data)
 
-    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, ~TeachersOnly],
+    )
     def give_answer(self, request, **kwargs):
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
         user = request.user
@@ -259,7 +263,11 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, ~TeachersOnly],
+    )
     def withdraw_answer(self, request, **kwargs):
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
         if exam.closed:
@@ -299,7 +307,11 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, ~TeachersOnly],
+    )
     def current_item(self, request, **kwargs):
         # get current exam
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
@@ -309,7 +321,6 @@ class ExamViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
             )
-
         # this is the first entry point that the frontend will call upon a student entering
         # an exam for the first time, so the student's ExamProgress might not exist yet and
         # thus needs to be created
@@ -328,7 +339,11 @@ class ExamViewSet(viewsets.ModelViewSet):
         serializer = ExamSerializer(instance=exam, context=context, **kwargs)
         return Response(serializer.data)
 
-    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, ~TeachersOnly],
+    )
     def next_item(self, request, **kwargs):
         # get current exam
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
@@ -352,7 +367,11 @@ class ExamViewSet(viewsets.ModelViewSet):
         serializer = ExamSerializer(instance=exam, context=context, **kwargs)
         return Response(serializer.data)
 
-    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, ~TeachersOnly],
+    )
     def previous_item(self, request, **kwargs):
         # get current exam
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
@@ -378,7 +397,11 @@ class ExamViewSet(viewsets.ModelViewSet):
         serializer = ExamSerializer(instance=exam, context=context, **kwargs)
         return Response(serializer.data)
 
-    @action(detail=True, methods=["post"], permission_classes=[~TeachersOnly])
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, ~TeachersOnly],
+    )
     def end_exam(self, request, **kwargs):
         """
         Reached by a student when they are done with their exam
