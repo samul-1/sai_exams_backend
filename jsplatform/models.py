@@ -145,8 +145,6 @@ class Exam(models.Model):
         return sum(list(map(lambda a: a["amount"], amounts)))
 
     def get_current_progress(self, global_data_only=False):
-        # !!! rework this - probably need to add a @property in ExamProgress to get the number of answered questions
-        # ! rather than progress_as_decimal
         """
         Returns a dict detailing the current number of participants to the exam and their
         current progress in terms of how many items they've completed
@@ -167,6 +165,7 @@ class Exam(models.Model):
         for participant in participants:
             participant_progress = participant.completed_items_count
             progress_sum += participant_progress
+            # todo add correct_answers_count (in ExamProgress as a @property and then here)
 
             if participant_progress == total_items_count:
                 completed_count += 1
@@ -264,31 +263,6 @@ class Category(models.Model):
             self.rendered_introduction_text = tex_to_svg(self.introduction_text)
             self.save(render_tex=False)
 
-    @property
-    def error_rate(self):
-        #! implement
-        """
-        per ogni categoria:
-        - percentuale di errore (numero di domande sbagliate / numero di domande apparse
-        per quella categoria ovvero category.amount * num_participants)
-        """
-        # todo do the same for exercises
-        questions = (
-            self.questions.all()
-            .prefetch_related("answers")
-            .prefetch_related("given_answers")
-        )
-        completed_participant_count = self.exam.participations.filter(
-            exhausted_categories__in=[self]
-        ).count()
-
-        # number of items of this category that have been seen by a student
-        shown_items = completed_participant_count * self.amount
-
-        current_participants = self.exam.participations.filter(current_category=self)
-        for p in current_participants:
-            shown_items += p.served_for_current_category
-
 
 class ExamReport(models.Model):
     """
@@ -331,7 +305,6 @@ class ExamReport(models.Model):
         # first generate pdf files for all exam participants
         participations = self.exam.participations.all()
         for participation in participations:
-            # print(participation.pdf_report)
             if not participation.pdf_report:
                 participation.generate_pdf()
 
@@ -366,10 +339,7 @@ class ExamReport(models.Model):
         headers = ["Corso", "Email"]
 
         exercise_count = self.exam.exercises.count()
-        # ! TODO THIS IS TEMPORARY
-        question_count = (
-            self.exam.get_number_of_items_per_exam()
-        )  # self.exam.questions.count()
+        question_count = self.exam.questions.count()
 
         for i in range(0, exercise_count):
             headers.append(f"Esercizio JS { i+1 } testo")
@@ -416,7 +386,11 @@ class ExamReport(models.Model):
             # get submission data for this participant for each exercise in the exam
             exerciseCount = 1
             for exercise in exercises.filter(
-                Q(pk__in=participant_state.exercises.all())
+                pk__in=participant_state.exercises.all()
+                .order_by("examprogressexercisesthroughmodel__ordering")
+                .filter(
+                    examprogressexercisesthroughmodel__exam_progress=participant_state
+                )
             ):
                 exercise_details = {
                     f"Esercizio JS { exerciseCount } testo": exercise.text
@@ -450,8 +424,13 @@ class ExamReport(models.Model):
 
             # get submission data for this participant for each question in the exam
             questionCount = 1
-            for question in questions.filter(pk__in=participant_state.questions.all()):
-                # todo order_by examcompletedquestionsthroughmodel__ordering
+            for question in (
+                questions.filter(pk__in=participant_state.questions.all())
+                .order_by("examprogressquestionsthroughmodel__ordering")
+                .filter(
+                    examprogressquestionsthroughmodel__exam_progress=participant_state
+                )
+            ):
                 question_details = {
                     f"Domanda { questionCount } testo": preprocess_html_for_csv(
                         question.text
@@ -469,9 +448,6 @@ class ExamReport(models.Model):
                 question_details[f"Domanda { questionCount } risposta corretta"] = []
 
                 for given_answer in given_answers:
-                    # print("GIVEN ANSWER")
-                    # print(given_answer.pk)
-                    # print(given_answer)
                     question_details[f"Domanda { questionCount } risposta data"].append(
                         given_answer.text
                         if given_answer.question.question_type == "o"
@@ -521,12 +497,6 @@ class ExamReport(models.Model):
                 question_details[f"Domanda { questionCount } orario risposta"] = str(
                     given_answer.timestamp
                 )
-                # if given_answer.question.question_type == "m":
-                #     question_details[f"Domanda { questionCount } risposta corretta"] = (
-                #         given_answer.answer.is_right_answer  # given_answer.answer.text
-                #         if given_answer.answer is not None
-                #         else False
-                #     )
 
                 participant_details.update(question_details)
                 questionCount += 1
@@ -571,26 +541,21 @@ class Question(models.Model):
         return self.text[:100]
 
     def save(self, render_tex=True, *args, **kwargs):
-        # todo check that question belongs to a category that is from the same exam as the question
-        if self.category is not None and self.category.item_type != "q":
+        if (
+            self.category is not None
+            and self.category.item_type != "q"
+            or self.category.exam != self.exam
+        ):
             raise InvalidCategoryType
-        text_changed = False  # not self.pk or (
-        #     self.text != Question.objects.get(pk=self.pk).text
-        # )
+        text_changed = not self.pk or (
+            self.text != Question.objects.get(pk=self.pk).text
+        )
 
         super(Question, self).save(*args, **kwargs)
 
         if render_tex and text_changed:
             self.rendered_text = tex_to_svg(self.text)
             self.save(render_tex=False)
-
-    def clean(self):
-        # todo move this up to save()
-        if self.category.exam.pk != self.exam.pk:
-            raise ValidationError(
-                "Question's category's  is not the same as question's exam"
-            )
-        return super().clean()
 
     @property
     def num_appearances(self):
@@ -652,8 +617,11 @@ class Exercise(models.Model):
         return self.text
 
     def save(self, render_tex=True, *args, **kwargs):
-        # todo check that the exercise belongs to a category from the same exam as the exercise
-        if self.category is not None and self.category.item_type != "e":
+        if (
+            self.category is not None
+            and self.category.item_type != "e"
+            or self.category.exam != self.exam
+        ):
             raise InvalidCategoryType
 
         # todo change not self.pk to `self.pk is None` here and everywhere else where it appears
@@ -702,8 +670,6 @@ class ExamProgress(models.Model):
         related_name="question_assigned_in_exams",
         blank=True,
     )
-
-    # todo add started_at and ended_at
 
     exercises = models.ManyToManyField(
         Exercise,
@@ -789,26 +755,6 @@ class ExamProgress(models.Model):
                 through_row.save()
                 item_count += 1
 
-        # exercise_categories = self.exam.categories.filter(item_type="e")
-        # if self.exam.randomize_exercises:
-        #     exercise_categories = exercise_categories.order_by("?")
-
-        # # for each category, add `category.amount` questions to `self.questions`, incrementing
-        # # `item_count` at each iteration. follow randomization rules etc.
-        # for category in exercise_categories:
-        #     items = category.questions.all()
-        #     if category.randomize:
-        #         items = items.order_by("?")
-
-        #     items = items[: category.amount]
-
-        #     for item in items:
-        #         through_row = ExamProgressExercisesThroughModel(
-        #             exam_progress=self, question=item, ordering=item_count
-        #         )
-        #         through_row.save()
-        #         item_count += 1
-
         # todo do the same for exercises
         self.is_initialized = True
         self.save()
@@ -862,24 +808,22 @@ class ExamProgress(models.Model):
             "exercises": [],
         }
 
-        exercises = self.exam.exercises.filter(
-            Q(pk__in=self.exercises.all())
-        ).prefetch_related("testcases")
-        print("here")
+        exercises = (
+            self.exam.exercises.filter(pk__in=self.exercises.all())
+            .order_by("examprogressexercisesthroughmodel__ordering")
+            .filter(examprogressexercisesthroughmodel__exam_progress=self)
+            .prefetch_related("testcases")
+        )
+
         questions = (
             self.exam.questions.filter(pk__in=self.questions.all())
             .order_by("examprogressquestionsthroughmodel__ordering")
             .filter(
                 examprogressquestionsthroughmodel__exam_progress=self
             )  # MAJOR BREAKTHROUGH
-            # todo order_by examcompletedquestionsthroughmodel__ordering"
             .prefetch_related("answers")
             .prefetch_related("given_answers")
         )
-
-        print(questions.query)
-
-        print(len(questions))
 
         for question in questions:
             # print(question.pk)
@@ -902,7 +846,7 @@ class ExamProgress(models.Model):
                                 lambda g: g.answer.pk if g.answer is not None else 0,
                                 given_answers,
                             )
-                        ),
+                        ),  # todo make a selected_by(user) method in Answer
                     }
                     for a in question.answers.all()
                 ]
@@ -913,7 +857,6 @@ class ExamProgress(models.Model):
             ret["questions"].append(q)
         return ret
 
-    # todo move this to a separate module
     def generate_pdf(self):
         """
         Generate a pdf file containing the seen questions/exercises from this user and the given answers
@@ -924,27 +867,7 @@ class ExamProgress(models.Model):
         pdf_binary = render_to_pdf(template_name, self.get_progress_as_dict())
 
         # save pdf to disk and associate it to student's exam progress
-        # todo handle cases of people with same full name
         self.pdf_report.save("%s.pdf" % self.user.full_name, (pdf_binary))
-
-    def simulate(self):
-        # todo you don't need this anymore - delete this, and change the corresponding view accordingly
-        """
-        Returns a mock exam in the form of a list of questions and one of exercises, representing
-        what an instance of the exam could look like with the given exam settings
-        """
-        questions = []
-        exercises = []
-
-        while (item := self.get_next_item(force_next=True)) is not None:
-            if isinstance(item, Question):
-                questions.append(
-                    item.format_for_pdf()
-                )  # ! this needs attention before deleting the method
-            else:
-                exercises.append(item)  # todo format_for_pdf
-
-        return (questions, exercises)
 
 
 class ExamProgressQuestionsThroughModel(models.Model):
@@ -1057,7 +980,6 @@ class Submission(models.Model):
             # from creating and endless loop
             self.eval_submission()
 
-    # todo move this to a separate module
     def eval_submission(self):
         # submission has already been confirmed
         if self.has_been_turned_in:
@@ -1102,11 +1024,6 @@ class Submission(models.Model):
 
         self.has_been_turned_in = True
         self.save()
-
-        # mark exercise as completed and update ExamProgress' current exercise to a random new exercise
-        # todo this needs to go away
-        # !!!
-        self.exercise.exam.get_item_for(self.user, force_next=True)
 
 
 class Answer(models.Model):
