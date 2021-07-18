@@ -752,6 +752,73 @@ class ExamTestCase(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(self.exam.closed, False)
 
+        post_request_body = {
+            "questions": [
+                {
+                    "answers": [],
+                    "category_uuid": "582c9244-edb7-4800-a669-53f5f79df2e9",
+                    "text": '<p style="display: inline-block">abc</p>',
+                    "introduction_text": "",
+                    "accepts_multiple_answers": False,
+                    "question_type": "o",
+                }
+            ],
+            "exercises": [],
+            "categories": [
+                {
+                    "text": "",
+                    "introduction_text": "",
+                    "tmp_uuid": "582c9244-edb7-4800-a669-53f5f79df2e9",
+                    "item_type": "q",
+                    "name": "cat1",
+                    "amount": 1,
+                    "is_aggregated_question": False,
+                    "randomize": True,
+                }
+            ],
+            "name": "test",
+            "begin_timestamp": "2021-07-01 00:00:00",
+            "end_timestamp": "2021-07-08 00:00:00",
+            "randomize_questions": True,
+            "randomize_exercises": True,
+            "allowed_teachers": [self.teacher.pk],
+        }
+
+        # students cannot create exams
+        response = client.post(f"/exams/", post_request_body)
+        self.assertEqual(response.status_code, 403)
+
+        with self.assertRaises(Exam.DoesNotExist):
+            Exam.objects.get(name="test")
+
+        client.force_authenticate(user=self.teacher)
+        response = client.post(f"/exams/", post_request_body)
+        self.assertEqual(response.status_code, 201)
+        # retrieve newly created exam
+        new_exam_id = response.data["id"]
+        response = client.get(f"/exams/{new_exam_id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "abc")
+
+        # non-authorized teachers cannot access exams
+        new_teacher = User.objects.create(
+            username="teacher2", email="teacher2@unipi.it"
+        )
+        client.force_authenticate(user=new_teacher)
+        response = client.get(f"/exams/{new_exam_id}/")
+        self.assertEqual(response.status_code, 404)
+
+        # update exam to add new teacher
+        post_request_body.update({"allowed_teachers": [new_teacher.pk]})
+        client.force_authenticate(user=self.teacher)
+        response = client.put(f"/exams/{new_exam_id}/", post_request_body)
+        self.assertEqual(response.status_code, 200)
+
+        # authorized teacher can now access the exam
+        client.force_authenticate(user=new_teacher)
+        response = client.get(f"/exams/{new_exam_id}/")
+        self.assertEqual(response.status_code, 200)
+
     def test_progress_and_stats(self):
         # shows that as exam participants answer question, their `completed_items_count` increases, and that when
         # an answer is selected by a user, its `selections` count increases
