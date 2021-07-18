@@ -364,6 +364,8 @@ class ExamReport(models.Model):
         Populates the report, adding all the needed details
         """
 
+        # I know... this whole method is ugly. I'll refactor it one day
+
         # get all users who participated into the exam
         participations = self.exam.participations.all()
         participants = list(map(lambda p: p.user, participations))
@@ -408,15 +410,15 @@ class ExamReport(models.Model):
                     f"Esercizio JS { exerciseCount } sottomissione"
                 ] = submission.code
                 exercise_details[
-                    f"Esercizio JS {exerciseCount} orario visualizzazione"
+                    f"Esercizio JS { exerciseCount } orario visualizzazione"
                 ] = "-"
                 exercise_details[f"Esercizio JS {exerciseCount} orario consegna"] = str(
                     submission.timestamp
                 )
                 exercise_details[
-                    f"Esercizio JS {exerciseCount} testcase superati"
+                    f"Esercizio JS { exerciseCount } testcase superati"
                 ] = submission.get_passed_testcases()
-                exercise_details[f"Esercizio JS {exerciseCount} testcase falliti"] = (
+                exercise_details[f"Esercizio JS { exerciseCount } testcase falliti"] = (
                     exercise.testcases.count() - submission.get_passed_testcases()
                 )
                 participant_details.update(exercise_details)
@@ -435,15 +437,16 @@ class ExamReport(models.Model):
                     f"Domanda { questionCount } testo": preprocess_html_for_csv(
                         question.text
                     )
-                }  # question.text
+                }
 
                 given_answers = question.given_answers.filter(user=participant)
 
-                if given_answers.count() == 0:  # no answer was given (not even skip)
+                if not given_answers.exists():
                     given_answers = [
                         GivenAnswer(answer=None, question=question, user=participant)
                     ]  # dummy answer
 
+                # we need lists here because some questions accept more than one answer
                 question_details[f"Domanda { questionCount } risposta data"] = []
                 question_details[f"Domanda { questionCount } risposta corretta"] = []
 
@@ -461,10 +464,12 @@ class ExamReport(models.Model):
                         question_details[
                             f"Domanda { questionCount } risposta corretta"
                         ].append(
-                            given_answer.answer.is_right_answer  # given_answer.answer.text
+                            given_answer.answer.is_right_answer
                             if given_answer.answer is not None
                             else False
                         )
+
+                # join all the given answers' texts into a '\n'-separated string
                 question_details[
                     f"Domanda { questionCount } risposta data"
                 ] = "\n ".join(
@@ -478,6 +483,7 @@ class ExamReport(models.Model):
                     )
                 )
 
+                # join all the given answers' correctness values into a '\n'-separated string
                 question_details[
                     f"Domanda { questionCount } risposta corretta"
                 ] = "\n ".join(
@@ -686,10 +692,10 @@ class ExamProgress(models.Model):
     def __str__(self):
         return f"{self.user.full_name} - {self.exam}"
 
-    def save(self, *args, **kwargs):
+    def save(self, initialize=True, *args, **kwargs):
         creating = self.pk is None
         super(ExamProgress, self).save(*args, **kwargs)
-        if creating:
+        if creating and initialize:
             self.generate_items()
 
     @property
@@ -825,7 +831,10 @@ class ExamProgress(models.Model):
             q = {
                 "text": preprocess_html_for_pdf(question.rendered_text),
                 "type": question.question_type,
-                "introduction_text": preprocess_html_for_pdf(question.introduction_text)
+                "introduction_text": preprocess_html_for_pdf(
+                    question.introduction_text
+                ),
+                "id": question.pk,
                 # "accepts_multiple_answers": question.accepts_multiple_answers,
             }
             if question.question_type == "m":

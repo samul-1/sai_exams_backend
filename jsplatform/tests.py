@@ -13,6 +13,7 @@ from jsplatform.models import (
     Category,
     Exam,
     ExamProgress,
+    ExamProgressQuestionsThroughModel,
     Exercise,
     GivenAnswer,
     Question,
@@ -501,6 +502,113 @@ class QuestionViewSetTestCase(TestCase):
     pass
 
 
+class ExaStateTestCase(TestCase):
+    """
+    Tests that exam items assigned to participants are retrieved correctly in order to generate
+    post-exam reports
+    """
+
+    def setUp(self):
+        now = timezone.localtime(timezone.now())
+
+        self.student1 = User.objects.create(
+            username="student1", email="student1@studenti.unipi.it"
+        )
+        self.student2 = User.objects.create(
+            username="student2", email="student2@studenti.unipi.it"
+        )
+        self.student3 = User.objects.create(
+            username="student3", email="student3@studenti.unipi.it"
+        )
+
+        self.exam = Exam.objects.create(
+            name="Test exam", begin_timestamp=now, end_timestamp=now, draft=False
+        )
+
+        cat1 = Category.objects.create(
+            exam=self.exam, name="cat1", amount=3, item_type="q", randomize=False
+        )
+        self.q1 = Question.objects.create(
+            exam=self.exam, text="question1", category=cat1
+        )
+        self.q2 = Question.objects.create(
+            exam=self.exam, text="question2", category=cat1
+        )
+        self.q3 = Question.objects.create(
+            exam=self.exam, text="question3", category=cat1
+        )
+        self.q4 = Question.objects.create(
+            exam=self.exam, text="question4", category=cat1
+        )
+
+    def test_retrieve_assigned_items_sorted(self):
+        exam_progress1 = ExamProgress(user=self.student1, exam=self.exam)
+        exam_progress1.save(initialize=False)
+
+        exam_progress2 = ExamProgress(user=self.student2, exam=self.exam)
+        exam_progress2.save(initialize=False)
+
+        exam_progress3 = ExamProgress(user=self.student3, exam=self.exam)
+        exam_progress3.save(initialize=False)
+
+        # assign to the first participant [q1, q2, q3]
+        ExamProgressQuestionsThroughModel.objects.create(
+            exam_progress=exam_progress1, question=self.q1, ordering=1
+        )
+        ExamProgressQuestionsThroughModel.objects.create(
+            exam_progress=exam_progress1,
+            question=self.q3,
+            # mixing up the order of creation of the through table rows doesn't
+            # change the ordering, what matters is the 'ordering` attribute
+            ordering=3,
+        )
+        ExamProgressQuestionsThroughModel.objects.create(
+            exam_progress=exam_progress1, question=self.q2, ordering=2
+        )
+
+        # assign to the second participant [q2, q1, q3]
+        ExamProgressQuestionsThroughModel.objects.create(
+            exam_progress=exam_progress2, question=self.q2, ordering=1
+        )
+        ExamProgressQuestionsThroughModel.objects.create(
+            exam_progress=exam_progress2, question=self.q1, ordering=2
+        )
+        ExamProgressQuestionsThroughModel.objects.create(
+            exam_progress=exam_progress2, question=self.q3, ordering=3
+        )
+
+        # assign to the third participant [q1, q4, q2]
+        ExamProgressQuestionsThroughModel.objects.create(
+            exam_progress=exam_progress3, question=self.q2, ordering=3
+        )
+        ExamProgressQuestionsThroughModel.objects.create(
+            exam_progress=exam_progress3, question=self.q4, ordering=2
+        )
+        ExamProgressQuestionsThroughModel.objects.create(
+            exam_progress=exam_progress3, question=self.q1, ordering=1
+        )
+
+        # show that all and only the assigned questions are retrieved, in the
+        # same order as they were assigned to each participant
+        progress_as_dict1 = exam_progress1.get_progress_as_dict()
+        self.assertListEqual(
+            [self.q1.pk, self.q2.pk, self.q3.pk],
+            [q["id"] for q in progress_as_dict1["questions"]],
+        )
+
+        progress_as_dict2 = exam_progress2.get_progress_as_dict()
+        self.assertListEqual(
+            [self.q2.pk, self.q1.pk, self.q3.pk],
+            [q["id"] for q in progress_as_dict2["questions"]],
+        )
+
+        progress_as_dict3 = exam_progress3.get_progress_as_dict()
+        self.assertListEqual(
+            [self.q1.pk, self.q4.pk, self.q2.pk],
+            [q["id"] for q in progress_as_dict3["questions"]],
+        )
+
+
 class ExamTestCase(TestCase):
     """
     Tests functionalities of the ExamProgress model and how they relate to
@@ -552,8 +660,6 @@ class ExamTestCase(TestCase):
         self.q3a1 = Answer.objects.create(question=self.q3, text="abc")
         self.q3a2 = Answer.objects.create(question=self.q3, text="abc")
         self.q3a3 = Answer.objects.create(question=self.q3, text="abc")
-
-        self.max_cursor_value = self.exam.get_number_of_items_per_exam() - 1
 
     def get_post_request(self, api_url, body):
         factory = APIRequestFactory()
