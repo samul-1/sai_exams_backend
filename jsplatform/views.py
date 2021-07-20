@@ -95,7 +95,6 @@ class ExamViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, TeachersOnly]
     # limit exam access for a user to those created by them or to which they've been granted access
     filter_backends = [filters.ExamCreatorAndAllowed, OrderingFilter]
-    renderer_classes = tuple(api_settings.DEFAULT_RENDERER_CLASSES) + (ReportRenderer,)
     ordering = ["pk"]
 
     def get_queryset(self):
@@ -449,21 +448,12 @@ class ExamViewSet(viewsets.ModelViewSet):
     def report(self, request, **kwargs):
         exam = self.get_object()
         report, _ = ExamReport.objects.get_or_create(exam=exam)
-        # filename = report.csv_report.name.split("/")[-1]
+        filename = report.csv_report.name.split("/")[-1]
 
-        return FileResponse(report.csv_report, as_attachment=True, filename="filename")
+        return FileResponse(report.csv_report, as_attachment=True, filename=filename)
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
-
-    def get_renderer_context(self):
-        context = super().get_renderer_context()
-        try:
-            header = context["view"].get_object().examreport.headers
-        except Exception:  #!
-            header = None
-        context["header"] = header
-        return context
 
 
 class ExerciseViewSet(viewsets.ModelViewSet):

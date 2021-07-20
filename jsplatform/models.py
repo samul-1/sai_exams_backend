@@ -161,7 +161,9 @@ class Exam(models.Model):
         current progress in terms of how many items they've completed
         """
         # total_items = self.get_number_of_items_per_exam()
-        participants = self.participations.all().prefetch_related("user")
+        participants = self.participations.all().prefetch_related(
+            "user"
+        )  # todo select_related
         participants_count = participants.count()
         total_items_count = self.get_number_of_items_per_exam()
         progress_sum = 0
@@ -205,7 +207,7 @@ class Exam(models.Model):
         Returns a couple <questions, exercises> representing a mock exam
         """
         progress = ExamProgress.objects.create(exam=self, user=user)
-        progress.generate_items()
+        progress.generate_items()  # todo comment this line out
 
         # save the m2m fields as lists as the related object will be deleted
         questions = [q for q in progress.questions.all()]
@@ -280,8 +282,6 @@ class ExamReport(models.Model):
     A report generated at the end of an exam detailing the submissions and answers
     given by the students
     """
-
-    # todo refactor the csv stuff and possibly move the generation methods in a separate module
 
     exam = models.OneToOneField(Exam, null=True, on_delete=models.SET_NULL)
     generated_by = models.ForeignKey(
@@ -671,16 +671,15 @@ class ExamProgress(models.Model):
         )
 
         for question in questions:
-            # print(question.pk)
             given_answers = question.given_answers.filter(user=self.user)
 
             q = {
+                "id": question.pk,
                 "text": preprocess_fn(
                     question.rendered_text if for_pdf else question.text
-                ),
+                ),  # we don't want the TeX as svg in csv
                 "type": question.question_type,
                 "introduction_text": preprocess_fn(question.introduction_text),
-                "id": question.pk,
                 # "accepts_multiple_answers": question.accepts_multiple_answers,
             }
             if question.question_type == "m":
@@ -698,7 +697,7 @@ class ExamProgress(models.Model):
                     }
                     for a in question.answers.all()
                 ]
-            else:
+            else:  # open question
                 q["answer_text"] = (
                     given_answers[0].text if given_answers.exists() else ""
                 )

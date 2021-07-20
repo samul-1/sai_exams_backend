@@ -37,8 +37,6 @@ def render_to_pdf(template_src, context_dict, render_tex=False):
     if render_tex:
         html = tex_to_svg(html)
 
-    # print(html)
-
     font_config = FontConfiguration()
     pdf_bin = HTML(string=html).write_pdf(font_config=font_config)
     pdf = ContentFile(pdf_bin)

@@ -7,10 +7,15 @@ from jsplatform.models import Submission
 
 def preprocess_html_for_csv(html):
     """
-    Redacts the base64 data for <img> tags and removes unwanted html <p> tags
+    Redacts the base64 data for <img> tags, removes <p> tags, and replaces <br /> tags with `\n`
     """
-    ret = re.sub(r'src="([^"]+)"', "", html)
+
+    # remove this sequence that the frontend editor annoyingly appends to everything
+    ret = html.replace("<p><br></p>", "")
+
+    ret = re.sub(r'src="([^"]+)"', "", ret)
     ret = re.sub(r"<[^>]*/?p[^>]*>", "", ret)
+    ret = re.sub(r"<br\s*/?>", "\n", ret)
 
     return ret
 
