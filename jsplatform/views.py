@@ -449,7 +449,9 @@ class ExamViewSet(viewsets.ModelViewSet):
     def report(self, request, **kwargs):
         exam = self.get_object()
         report, _ = ExamReport.objects.get_or_create(exam=exam)
-        return Response(report.details)
+        # filename = report.csv_report.name.split("/")[-1]
+
+        return FileResponse(report.csv_report, as_attachment=True, filename="filename")
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

@@ -19,7 +19,6 @@ from django.utils import timezone
 from users.models import User
 
 from jsplatform.exceptions import ExamCompletedException, NoGoingBackException
-from jsplatform.pdf import preprocess_html_for_csv
 
 from .exceptions import (
     ExamNotOverYet,
@@ -133,16 +132,38 @@ class Exam(models.Model):
 
         self.save()
 
-    # todo make this a property
     def get_number_of_items_per_exam(self):
         """
         Returns the total number of items (questions + JS exercises) that will appear in
         each instance of the exam, regardless of the randomization. This can be calculated
         by adding the `amount` field of all the categories of the exam
         """
-
+        # todo refactor as below
         amounts = self.categories.all().values("amount")
         return sum(list(map(lambda a: a["amount"], amounts)))
+
+    def get_number_of_items_per_exam_as_tuple(self):
+        """
+        Returns a tuple (num_q, num_e) where the first member is the number of questions
+        shown to each user during an exam, and the second is the number of JS exercises shown
+        to each user during an exam
+        """
+        return (
+            sum(
+                list(
+                    self.categories.filter(item_type="q").values_list(
+                        "amount", flat=True
+                    )
+                )
+            ),
+            sum(
+                list(
+                    self.categories.filter(item_type="e").values_list(
+                        "amount", flat=True
+                    )
+                )
+            ),
+        )
 
     def get_current_progress(self, global_data_only=False):
         """
@@ -273,16 +294,16 @@ class ExamReport(models.Model):
     # todo refactor the csv stuff and possibly move the generation methods in a separate module
 
     exam = models.OneToOneField(Exam, null=True, on_delete=models.SET_NULL)
-    details = models.JSONField(null=True, blank=True)
     generated_by = models.ForeignKey(
         User, null=True, blank=True, on_delete=models.SET_NULL
     )
-    headers = models.JSONField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
 
     zip_report_archive = models.FileField(
         upload_to=get_pdf_upload_path, null=True, blank=True
     )
+
+    csv_report = models.FileField(upload_to=get_pdf_upload_path, null=True, blank=True)
 
     def __str__(self):
         return self.exam.name
@@ -297,9 +318,7 @@ class ExamReport(models.Model):
         creating = not self.pk  # see if the objects exists already or is being created
         super(ExamReport, self).save(*args, **kwargs)  # create the object
         if creating:
-            # populate report
-            self.generate_headers()
-            self.populate()
+            self.generate_csv()
 
     def generate_zip_archive(self):
         # first generate pdf files for all exam participants
@@ -332,185 +351,12 @@ class ExamReport(models.Model):
         )
         self.zip_report_archive.save("%s.zip" % self.exam.name, in_memory_file)
 
-    def generate_headers(self):
-        """
-        Fills in the `headers` field with the appropriate headers for the report
-        """
-        headers = ["Corso", "Email"]
+    def generate_csv(self):
+        from .csv import get_csv_from_exam
 
-        exercise_count = self.exam.exercises.count()
-        question_count = self.exam.questions.count()
-
-        for i in range(0, exercise_count):
-            headers.append(f"Esercizio JS { i+1 } testo")
-            headers.append(f"Esercizio JS { i+1 } sottomissione")
-            headers.append(f"Esercizio JS { i+1 } orario visualizzazione")
-            headers.append(f"Esercizio JS { i+1 } orario consegna")
-            headers.append(f"Esercizio JS { i+1 } testcase superati")
-            headers.append(f"Esercizio JS { i+1 } testcase falliti")
-
-        for i in range(0, question_count):
-            headers.append(f"Domanda { i+1 } testo")
-            headers.append(f"Domanda { i+1 } risposta data")
-            headers.append(f"Domanda { i+1 } risposta corretta")
-            headers.append(f"Domanda { i+1 } orario visualizzazione")
-            headers.append(f"Domanda { i+1 } orario risposta")
-
-        self.headers = headers
-        self.save()
-
-    def populate(self):
-        """
-        Populates the report, adding all the needed details
-        """
-
-        # I know... this whole method is ugly. I'll refactor it one day
-
-        # get all users who participated into the exam
-        participations = self.exam.participations.all()
-        participants = list(map(lambda p: p.user, participations))
-
-        # get all exercises and questions for this exam
-        questions = self.exam.questions.all().prefetch_related("given_answers")
-        exercises = self.exam.exercises.all().prefetch_related("submissions")
-
-        details = []
-
-        for participant in participants:
-            # process each participant
-
-            participant_details = {
-                "Email": participant.email,
-                "Corso": participant.course,
-            }
-            participant_state = self.exam.participations.get(user=participant)
-
-            # get submission data for this participant for each exercise in the exam
-            exerciseCount = 1
-            for exercise in exercises.filter(
-                pk__in=participant_state.exercises.all()
-                .order_by("examprogressexercisesthroughmodel__ordering")
-                .filter(
-                    examprogressexercisesthroughmodel__exam_progress=participant_state
-                )
-            ):
-                exercise_details = {
-                    f"Esercizio JS { exerciseCount } testo": exercise.text
-                }
-                try:
-                    submission = exercise.submissions.get(
-                        user=participant, has_been_turned_in=True
-                    )
-                except Submission.DoesNotExist:  # no submission was turned in
-                    submission = Submission(
-                        exercise=exercise, user=participant
-                    )  # dummy submission
-
-                exercise_details[
-                    f"Esercizio JS { exerciseCount } sottomissione"
-                ] = submission.code
-                exercise_details[
-                    f"Esercizio JS { exerciseCount } orario visualizzazione"
-                ] = "-"
-                exercise_details[f"Esercizio JS {exerciseCount} orario consegna"] = str(
-                    submission.timestamp
-                )
-                exercise_details[
-                    f"Esercizio JS { exerciseCount } testcase superati"
-                ] = submission.get_passed_testcases()
-                exercise_details[f"Esercizio JS { exerciseCount } testcase falliti"] = (
-                    exercise.testcases.count() - submission.get_passed_testcases()
-                )
-                participant_details.update(exercise_details)
-                exerciseCount += 1
-
-            # get submission data for this participant for each question in the exam
-            questionCount = 1
-            for question in (
-                questions.filter(pk__in=participant_state.questions.all())
-                .order_by("examprogressquestionsthroughmodel__ordering")
-                .filter(
-                    examprogressquestionsthroughmodel__exam_progress=participant_state
-                )
-            ):
-                question_details = {
-                    f"Domanda { questionCount } testo": preprocess_html_for_csv(
-                        question.text
-                    )
-                }
-
-                given_answers = question.given_answers.filter(user=participant)
-
-                if not given_answers.exists():
-                    given_answers = [
-                        GivenAnswer(answer=None, question=question, user=participant)
-                    ]  # dummy answer
-
-                # we need lists here because some questions accept more than one answer
-                question_details[f"Domanda { questionCount } risposta data"] = []
-                question_details[f"Domanda { questionCount } risposta corretta"] = []
-
-                for given_answer in given_answers:
-                    question_details[f"Domanda { questionCount } risposta data"].append(
-                        given_answer.text
-                        if given_answer.question.question_type == "o"
-                        else (
-                            given_answer.answer.text
-                            if given_answer.answer is not None
-                            else None
-                        )
-                    )
-                    if given_answer.question.question_type == "m":
-                        question_details[
-                            f"Domanda { questionCount } risposta corretta"
-                        ].append(
-                            given_answer.answer.is_right_answer
-                            if given_answer.answer is not None
-                            else False
-                        )
-
-                # join all the given answers' texts into a '\n'-separated string
-                question_details[
-                    f"Domanda { questionCount } risposta data"
-                ] = "\n ".join(
-                    list(
-                        map(
-                            lambda r: str(r),
-                            question_details[
-                                f"Domanda { questionCount } risposta data"
-                            ],
-                        )
-                    )
-                )
-
-                # join all the given answers' correctness values into a '\n'-separated string
-                question_details[
-                    f"Domanda { questionCount } risposta corretta"
-                ] = "\n ".join(
-                    list(
-                        map(
-                            lambda r: str(r),
-                            question_details[
-                                f"Domanda { questionCount } risposta corretta"
-                            ],
-                        )
-                    )
-                )
-
-                question_details[
-                    f"Domanda { questionCount } orario visualizzazione"
-                ] = "-"
-                question_details[f"Domanda { questionCount } orario risposta"] = str(
-                    given_answer.timestamp
-                )
-
-                participant_details.update(question_details)
-                questionCount += 1
-
-            details.append(participant_details)
-
-        self.details = details
-        self.save()
+        self.csv_report.save(
+            "%s.csv" % self.exam.name, ContentFile(get_csv_from_exam(self.exam))
+        )
 
 
 class Question(models.Model):
@@ -792,11 +638,21 @@ class ExamProgress(models.Model):
 
         return self.current_item
 
-    def get_progress_as_dict(self):
+    def get_progress_as_dict(self, for_csv=False, for_pdf=False):
         """
         Returns the user's seen questions/exercises and the given answers and submitted solutions as a dict
         that can be used to generate a pdf (it gets passed as context to the template that is rendered to pdf)
         """
+        from .csv import preprocess_html_for_csv
+
+        # for_csv xor for_pdf
+        assert (for_csv or for_pdf) and (not for_csv or not for_pdf)
+
+        if for_csv:
+            preprocess_fn = preprocess_html_for_csv
+        else:
+            preprocess_fn = preprocess_html_for_pdf
+
         ret = {
             "user": self.user,
             "exam": {
@@ -829,18 +685,18 @@ class ExamProgress(models.Model):
             given_answers = question.given_answers.filter(user=self.user)
 
             q = {
-                "text": preprocess_html_for_pdf(question.rendered_text),
-                "type": question.question_type,
-                "introduction_text": preprocess_html_for_pdf(
-                    question.introduction_text
+                "text": preprocess_fn(
+                    question.rendered_text if for_pdf else question.text
                 ),
+                "type": question.question_type,
+                "introduction_text": preprocess_fn(question.introduction_text),
                 "id": question.pk,
                 # "accepts_multiple_answers": question.accepts_multiple_answers,
             }
             if question.question_type == "m":
                 q["answers"] = [
                     {
-                        "text": preprocess_html_for_pdf(a.rendered_text),
+                        "text": preprocess_fn(a.rendered_text if for_pdf else a.text),
                         "is_right_answer": a.is_right_answer,
                         "selected": a.pk
                         in list(
@@ -857,6 +713,8 @@ class ExamProgress(models.Model):
                     given_answers[0].text if given_answers.exists() else ""
                 )
             ret["questions"].append(q)
+
+            # todo do the same for exercises
         return ret
 
     def generate_pdf(self):
@@ -866,7 +724,9 @@ class ExamProgress(models.Model):
         """
         template_name = constants.PDF_REPORT_TEMPLATE_NAME
         # get the pdf file's binary data
-        pdf_binary = render_to_pdf(template_name, self.get_progress_as_dict())
+        pdf_binary = render_to_pdf(
+            template_name, self.get_progress_as_dict(for_pdf=True)
+        )
 
         # save pdf to disk and associate it to student's exam progress
         self.pdf_report.save("%s.pdf" % self.user.full_name, (pdf_binary))
@@ -948,6 +808,10 @@ class Submission(models.Model):
         if self.details is None:
             return 0
         return len([t for t in self.details["tests"] if t["passed"]])
+
+    def get_failed_testcases(self):
+        ret = self.exercise.testcases.count()
+        return ret - self.get_passed_testcases()
 
     # todo make this a property
     def public_details(self):
