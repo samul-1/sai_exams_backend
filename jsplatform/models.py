@@ -132,38 +132,28 @@ class Exam(models.Model):
 
         self.save()
 
-    def get_number_of_items_per_exam(self):
+    def get_number_of_items_per_exam(self, as_tuple=False):
         """
         Returns the total number of items (questions + JS exercises) that will appear in
         each instance of the exam, regardless of the randomization. This can be calculated
-        by adding the `amount` field of all the categories of the exam
-        """
-        # todo refactor as below
-        amounts = self.categories.all().values("amount")
-        return sum(list(map(lambda a: a["amount"], amounts)))
+        by adding the `amount` field of all the categories of the exam.
 
-    def get_number_of_items_per_exam_as_tuple(self):
+        If `as_tuple` is True, returns a tuple (num_q, num_e) where the first member is the
+        number of questions shown to each user during an exam, and the second is the number
+        of JS exercises shown to each user during an exam
         """
-        Returns a tuple (num_q, num_e) where the first member is the number of questions
-        shown to each user during an exam, and the second is the number of JS exercises shown
-        to each user during an exam
-        """
-        return (
-            sum(
-                list(
-                    self.categories.filter(item_type="q").values_list(
-                        "amount", flat=True
-                    )
-                )
-            ),
-            sum(
-                list(
-                    self.categories.filter(item_type="e").values_list(
-                        "amount", flat=True
-                    )
-                )
-            ),
+        num_questions = sum(
+            list(self.categories.filter(item_type="q").values_list("amount", flat=True))
         )
+
+        num_exercises = sum(
+            list(self.categories.filter(item_type="e").values_list("amount", flat=True))
+        )
+
+        if as_tuple:
+            return (num_questions, num_exercises)
+
+        return num_questions + num_exercises
 
     def get_current_progress(self, global_data_only=False):
         """

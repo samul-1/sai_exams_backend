@@ -18,7 +18,7 @@ def preprocess_html_for_csv(html):
 def get_header_row(exam):
     headers = ["Corso", "Email"]
 
-    question_count, exercise_count = exam.get_number_of_items_per_exam_as_tuple()
+    question_count, exercise_count = exam.get_number_of_items_per_exam(as_tuple=True)
 
     for i in range(0, question_count):
         headers.append(f"Domanda { i+1 } testo")
