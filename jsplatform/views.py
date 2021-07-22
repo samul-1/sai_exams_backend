@@ -445,7 +445,13 @@ class ExamViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_202_ACCEPTED)
 
         if report.in_progress:
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response(
+                status=status.HTTP_206_PARTIAL_CONTENT,
+                data={
+                    "processed": report.generated_reports_count,
+                    "total": exam.participations.count(),
+                },
+            )
         else:
             filename = report.zip_report_archive.name.split("/")[-1]
             return FileResponse(

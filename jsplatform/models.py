@@ -20,9 +20,14 @@ from users.models import User
 
 from jsplatform.exceptions import ExamCompletedException, NoGoingBackException
 
-from .exceptions import (ExamNotOverYet, InvalidAnswerException,
-                         InvalidCategoryType, NotEligibleForTurningIn,
-                         OutOfCategories, SubmissionAlreadyTurnedIn)
+from .exceptions import (
+    ExamNotOverYet,
+    InvalidAnswerException,
+    InvalidCategoryType,
+    NotEligibleForTurningIn,
+    OutOfCategories,
+    SubmissionAlreadyTurnedIn,
+)
 from .pdf import preprocess_html_for_pdf, render_to_pdf
 from .tex import tex_to_svg
 from .utils import run_code_in_vm
@@ -284,6 +289,7 @@ class ExamReport(models.Model):
     )
     created = models.DateTimeField(auto_now_add=True)
     in_progress = models.BooleanField(default=True)
+    generated_reports_count = models.PositiveIntegerField(default=0)
 
     zip_report_archive = models.FileField(
         upload_to=get_pdf_upload_path, null=True, blank=True
@@ -310,6 +316,8 @@ class ExamReport(models.Model):
         for participation in participations:
             if not participation.pdf_report:
                 participation.generate_pdf()
+                self.generated_reports_count += 1
+                self.save()
 
         zip_subdir = "reports"
         zip_filename = "%s.zip" % self.exam.name
