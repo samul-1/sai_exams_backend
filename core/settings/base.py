@@ -85,6 +85,7 @@ INSTALLED_APPS = [
     "social_django",
     "rest_framework_social_oauth2",
     "channels",
+    "django_celery_results",
 ]
 
 SITE_ID = 1
@@ -215,3 +216,8 @@ STATIC_URL = "/static/"
 
 MEDIA_ROOT = os.path.join(PROJECT_DIR, "media")
 MEDIA_URL = "/media/"
+
+
+# Celery settings
+CELERY_RESULT_BACKEND = "django-db"
+CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")

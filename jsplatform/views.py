@@ -433,17 +433,26 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def zip_archive(self, request, **kwargs):
+        from core.celery import generate_zip_archive
+
         exam = self.get_object()
-        report, _ = ExamReport.objects.get_or_create(exam=exam)
 
-        if not report.zip_report_archive:
-            report.generate_zip_archive()
+        try:
+            report = ExamReport.objects.get(exam=exam)
+        except ExamReport.DoesNotExist:
+            # report hasn't been generated yet - schedule its creation
+            generate_zip_archive.delay(exam_id=exam.pk)
+            return Response(status=status.HTTP_202_ACCEPTED)
 
-        filename = report.zip_report_archive.name.split("/")[-1]
-        return FileResponse(
-            report.zip_report_archive, as_attachment=True, filename=filename
-        )
+        if report.in_progress:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        else:
+            filename = report.zip_report_archive.name.split("/")[-1]
+            return FileResponse(
+                report.zip_report_archive, as_attachment=True, filename=filename
+            )
 
+    # todo rename to csv
     @action(detail=True, methods=["post"])
     def report(self, request, **kwargs):
         exam = self.get_object()

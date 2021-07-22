@@ -20,14 +20,9 @@ from users.models import User
 
 from jsplatform.exceptions import ExamCompletedException, NoGoingBackException
 
-from .exceptions import (
-    ExamNotOverYet,
-    InvalidAnswerException,
-    InvalidCategoryType,
-    NotEligibleForTurningIn,
-    OutOfCategories,
-    SubmissionAlreadyTurnedIn,
-)
+from .exceptions import (ExamNotOverYet, InvalidAnswerException,
+                         InvalidCategoryType, NotEligibleForTurningIn,
+                         OutOfCategories, SubmissionAlreadyTurnedIn)
 from .pdf import preprocess_html_for_pdf, render_to_pdf
 from .tex import tex_to_svg
 from .utils import run_code_in_vm
@@ -288,6 +283,7 @@ class ExamReport(models.Model):
         User, null=True, blank=True, on_delete=models.SET_NULL
     )
     created = models.DateTimeField(auto_now_add=True)
+    in_progress = models.BooleanField(default=True)
 
     zip_report_archive = models.FileField(
         upload_to=get_pdf_upload_path, null=True, blank=True
@@ -299,8 +295,6 @@ class ExamReport(models.Model):
         return self.exam.name
 
     def save(self, *args, **kwargs):
-        now = timezone.localtime(timezone.now())
-
         if not self.exam.closed:
             # prevent creation of report if exam is still undergoing
             raise ExamNotOverYet

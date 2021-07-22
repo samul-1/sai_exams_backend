@@ -1,6 +1,6 @@
 import csv
 import re
-from io import BytesIO, StringIO
+from io import StringIO
 
 from jsplatform.models import Submission
 
@@ -11,7 +11,9 @@ def preprocess_html_for_csv(html):
     """
 
     # remove this sequence that the frontend editor annoyingly appends to everything
-    ret = html.replace("<p><br></p>", "")
+    ret = html.replace("<p><br></p>", "").replace(
+        "&nbsp;", " "
+    )  # FIXME replace other html entities too
 
     ret = re.sub(r'src="([^"]+)"', "", ret)
     ret = re.sub(r"<[^>]*/?p[^>]*>", "", ret)
