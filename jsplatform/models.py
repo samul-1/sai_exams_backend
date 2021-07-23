@@ -311,15 +311,19 @@ class ExamReport(models.Model):
             self.generate_csv()
 
     def generate_zip_archive(self):
-        self.generated_reports_count = 0  # reset the count if re-generating
+        # delete the previous zip archive and reset the report count to make
+        # this method idempotent (allows easy retrying in celery task)
+        print("------- INSIDE OF GENERATE ZIP ARCHIVE MODEL METHOD -------")
+        if self.zip_report_archive:
+            self.zip_report_archive.delete()
+        self.generated_reports_count = 0
+
         self.in_progress = True
         self.save()
+        print("------- EXAM REPORT IS NOW IN PROGRESS -------")
         # first generate pdf files for all exam participants
         participations = self.exam.participations.all()
         for participation in participations:
-            if participation.pdf_report:
-                print(f"deleting {participation.user.full_name} report")
-                participation.pdf_report.delete()
             participation.generate_pdf()
             print(f"generated {participation.user.full_name} report")
             self.generated_reports_count += 1
@@ -335,15 +339,18 @@ class ExamReport(models.Model):
         zf = zipfile.ZipFile(s, "w")
 
         for fpath in filenames:
+            print(f"about to process fpath {fpath}")
             # Calculate path for file in zip
             fdir, fname = os.path.split(fpath)
             zip_path = os.path.join(zip_subdir, fname)
 
             # Add file, at correct path
             zf.write(fpath, zip_path)
+            print(f"done processing {fpath}")
 
         zf.close()
 
+        print("FINISHED WRITING TO ZIP")
         in_memory_file = InMemoryUploadedFile(
             s, None, zip_filename, "application/zip", s.__sizeof__(), None
         )
@@ -724,6 +731,10 @@ class ExamProgress(models.Model):
         Generate a pdf file containing the seen questions/exercises from this user and the given answers
         or submitted solutions
         """
+        if self.pdf_report:
+            print(f"deleting {self.user.full_name} report")
+            self.pdf_report.delete()
+
         template_name = constants.PDF_REPORT_TEMPLATE_NAME
         # get the pdf file's binary data
         pdf_binary = render_to_pdf(
