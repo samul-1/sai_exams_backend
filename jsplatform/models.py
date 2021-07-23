@@ -288,7 +288,7 @@ class ExamReport(models.Model):
         User, null=True, blank=True, on_delete=models.SET_NULL
     )
     created = models.DateTimeField(auto_now_add=True)
-    in_progress = models.BooleanField(default=True)
+    in_progress = models.BooleanField(default=False)
     generated_reports_count = models.PositiveIntegerField(default=0)
 
     zip_report_archive = models.FileField(
@@ -311,6 +311,8 @@ class ExamReport(models.Model):
             self.generate_csv()
 
     def generate_zip_archive(self):
+        self.in_progress = True
+        self.save()
         # first generate pdf files for all exam participants
         participations = self.exam.participations.all()
         for participation in participations:
@@ -342,6 +344,8 @@ class ExamReport(models.Model):
             s, None, zip_filename, "application/zip", s.__sizeof__(), None
         )
         self.zip_report_archive.save("%s.zip" % self.exam.name, in_memory_file)
+        self.in_progress = False
+        self.save()
 
     def generate_csv(self):
         from .csv import get_csv_from_exam
@@ -946,7 +950,7 @@ class GivenAnswer(models.Model):
         ]
 
     def __str__(self):
-        return str(self.question) + " " + str(self.answer)
+        return self.user.full_name + " - " + str(self.question) + " " + str(self.answer)
 
     def save(self, *args, **kwargs):
         if self.answer is not None and self.answer not in self.question.answers.all():

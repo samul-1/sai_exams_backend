@@ -16,31 +16,17 @@ from rest_framework.views import APIView
 
 from . import filters, throttles
 from .exceptions import InvalidAnswerException, NotEligibleForTurningIn
-from .models import (
-    Answer,
-    Exam,
-    ExamProgress,
-    ExamReport,
-    Exercise,
-    FrontendError,
-    GivenAnswer,
-    Question,
-    Submission,
-    TestCase,
-    User,
-)
+from .models import (Answer, Exam, ExamProgress, ExamReport, Exercise,
+                     FrontendError, GivenAnswer, Question, Submission,
+                     TestCase, User)
 from .pdf import render_to_pdf
-from .permissions import IsTeacherOrReadOnly, IsTeacherOrWriteOnly, TeachersOnly
+from .permissions import (IsTeacherOrReadOnly, IsTeacherOrWriteOnly,
+                          TeachersOnly)
 from .renderers import ReportRenderer
-from .serializers import (
-    ExamSerializer,
-    ExerciseSerializer,
-    FrontendErrorSerializer,
-    GivenAnswerSerializer,
-    QuestionSerializer,
-    SubmissionSerializer,
-    TestCaseSerializer,
-)
+from .serializers import (ExamSerializer, ExerciseSerializer,
+                          FrontendErrorSerializer, GivenAnswerSerializer,
+                          QuestionSerializer, SubmissionSerializer,
+                          TestCaseSerializer)
 
 
 class FrontendErrorViewSet(viewsets.ModelViewSet):
@@ -436,12 +422,10 @@ class ExamViewSet(viewsets.ModelViewSet):
         from core.celery import generate_zip_archive
 
         exam = self.get_object()
-
-        try:
-            report = ExamReport.objects.get(exam=exam)
-        except ExamReport.DoesNotExist:
+        report, created = ExamReport.objects.get_or_create(exam=exam)
+        if created or not report.zip_report_archive and not report.in_progress:
             # report hasn't been generated yet - schedule its creation
-            generate_zip_archive.delay(exam_id=exam.pk)
+            generate_zip_archive.delay(exam_id=exam.pk, user_id=request.user.pk)
             return Response(status=status.HTTP_202_ACCEPTED)
 
         if report.in_progress:

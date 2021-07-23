@@ -19,12 +19,8 @@ app.autodiscover_tasks()
 
 
 @app.task(bind=True)
-def generate_zip_archive(self, exam_id):
+def generate_zip_archive(self, exam_id, user_id):
     from jsplatform.models import Exam, ExamReport
 
-    print("Generating report for exam")
-    exam = Exam.objects.get(pk=exam_id)
-    report = ExamReport.objects.create(exam=exam)
+    report = ExamReport.objects.get(exam_id=exam_id)
     report.generate_zip_archive()
-    report.in_progress = False
-    report.save()
