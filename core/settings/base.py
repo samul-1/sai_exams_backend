@@ -214,8 +214,8 @@ ADMINS = [("Samuele", "s.bonini7@studenti.unipi.it")]
 STATIC_ROOT = os.path.join(PROJECT_DIR, "staticfiles")
 STATIC_URL = "/static/"
 
-MEDIA_ROOT = os.path.join(PROJECT_DIR, "media")
-MEDIA_URL = "/media/"
+MEDIA_ROOT = os.environ.get("MEDIA_ROOT", os.path.join(PROJECT_DIR, "media"))
+MEDIA_URL = os.environ.get("MEDIA_URL", "/media/")
 
 
 # Celery settings
