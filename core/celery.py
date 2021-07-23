@@ -23,4 +23,6 @@ def generate_zip_archive(self, exam_id, user_id):
     from jsplatform.models import Exam, ExamReport
 
     report = ExamReport.objects.get(exam_id=exam_id)
-    report.generate_zip_archive()
+    zip_archive = report.generate_zip_archive()
+    print(f"CELERY DONE GENERATING ZIP ARCHIVE: {zip_archive.name } {zip_archive.path}")
+    print(zip_archive)
