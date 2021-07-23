@@ -311,22 +311,26 @@ class ExamReport(models.Model):
             self.generate_csv()
 
     def generate_zip_archive(self):
+        self.generated_reports_count = 0  # reset the count if re-generating
         self.in_progress = True
         self.save()
         # first generate pdf files for all exam participants
         participations = self.exam.participations.all()
         for participation in participations:
-            if not participation.pdf_report:
-                participation.generate_pdf()
-                self.generated_reports_count += 1
-                self.save()
+            if participation.pdf_report:
+                print(f"deleting {participation.user.full_name} report")
+                participation.pdf_report.delete()
+            participation.generate_pdf()
+            print(f"generated {participation.user.full_name} report")
+            self.generated_reports_count += 1
+            self.save()
 
         zip_subdir = "reports"
         zip_filename = "%s.zip" % self.exam.name
 
         # get path of files to zip
         filenames = [f.path for f in map(lambda p: p.pdf_report, participations)]
-        print(filenames)
+        # print(filenames)
         s = BytesIO()
         zf = zipfile.ZipFile(s, "w")
 
@@ -344,8 +348,11 @@ class ExamReport(models.Model):
             s, None, zip_filename, "application/zip", s.__sizeof__(), None
         )
         self.zip_report_archive.save("%s.zip" % self.exam.name, in_memory_file)
+        print(f"saved {self.zip_report_archive.path}")
         self.in_progress = False
         self.save()
+        # for debugging
+        return self.zip_report_archive
 
     def generate_csv(self):
         from .csv import get_csv_from_exam
