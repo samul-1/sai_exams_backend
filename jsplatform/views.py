@@ -450,7 +450,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_202_ACCEPTED)
 
         logger.warning(
-            f"IN PROGRESS: {str(report.in_progress)} - ARCHIVE f{report.zip_report_archive}"
+            f"IN PROGRESS: {str(report.in_progress)} - ARCHIVE {report.zip_report_archive}"
         )
         if report.in_progress:
             return Response(

@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 
@@ -17,6 +18,8 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 # Load task modules from all registered Django apps.
 app.autodiscover_tasks()
 
+logger = logging.getLogger(__name__)
+
 
 @app.task(bind=True)
 def generate_zip_archive(self, exam_id, user_id):
@@ -24,5 +27,7 @@ def generate_zip_archive(self, exam_id, user_id):
 
     report = ExamReport.objects.get(exam_id=exam_id)
     zip_archive = report.generate_zip_archive()
-    print(f"CELERY DONE GENERATING ZIP ARCHIVE: {zip_archive.name} {zip_archive.path}")
-    print(zip_archive)
+    logger.warning(
+        f"CELERY DONE GENERATING ZIP ARCHIVE: {zip_archive.name} {zip_archive.path}"
+    )
+    logger.warning(zip_archive)
