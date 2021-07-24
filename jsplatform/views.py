@@ -442,11 +442,11 @@ class ExamViewSet(viewsets.ModelViewSet):
         report, created = ExamReport.objects.get_or_create(exam=exam)
         if created or (not report.zip_report_archive and not report.in_progress):
             # report hasn't been generated yet - schedule its creation
-            logger.warning("IN VIEW - SCHEDULING")
-            generate_zip_archive.delay(
-                exam_id=exam.pk, user_id=request.user.pk
-            )  # todo make sure the task actually got scheduled
-            logger.warning("IN VIEW - SCHEDULED")
+            logger.warning("NEW VERSION")
+            # generate_zip_archive.delay(
+            #     exam_id=exam.pk, user_id=request.user.pk
+            # )  # todo make sure the task actually got scheduled
+            logger.warning("NOT SCHEDULING A DAMN THING")
             return Response(status=status.HTTP_202_ACCEPTED)
 
         logger.warning(
