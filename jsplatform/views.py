@@ -436,7 +436,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def zip_archive(self, request, **kwargs):
-        from core.celery import generate_zip_archive
+        # from core.celery import generate_zip_archive
 
         exam = self.get_object()
         report, created = ExamReport.objects.get_or_create(exam=exam)
