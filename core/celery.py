@@ -22,15 +22,12 @@ logger = logging.getLogger(__name__)
 
 
 @app.task(bind=True)
-def generate_zip_archive_task(self, exam_id, user_id):
-    # from jsplatform.models import Exam, ExamReport
+def generate_zip_task(self, exam_id, user_id):
+    from jsplatform.models import ExamReport
 
-    logging.warning("IN AND OUT OF HERE")
-
-
-# report = ExamReport.objects.get(exam_id=exam_id)
-# zip_archive = report.generate_zip_archive()
-# logger.warning(
-#     f"CELERY DONE GENERATING ZIP ARCHIVE: {zip_archive.name} {zip_archive.path}"
-# )
-# logger.warning(zip_archive)
+    logging.warning("INSIDE THE TASK, GENERATING ZIP...")
+    report = ExamReport.objects.get(exam_id=exam_id)
+    zip_archive = report.generate_zip_archive()
+    logger.warning(
+        f"CELERY DONE GENERATING ZIP ARCHIVE: {zip_archive.name} {zip_archive.path}"
+    )
