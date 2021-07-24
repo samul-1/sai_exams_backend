@@ -24,5 +24,5 @@ def generate_zip_archive(self, exam_id, user_id):
 
     report = ExamReport.objects.get(exam_id=exam_id)
     zip_archive = report.generate_zip_archive()
-    print(f"CELERY DONE GENERATING ZIP ARCHIVE: {zip_archive.name } {zip_archive.path}")
+    print(f"CELERY DONE GENERATING ZIP ARCHIVE: {zip_archive.name} {zip_archive.path}")
     print(zip_archive)

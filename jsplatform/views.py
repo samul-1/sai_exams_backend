@@ -437,13 +437,18 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         exam = self.get_object()
         report, created = ExamReport.objects.get_or_create(exam=exam)
-        if created or not report.zip_report_archive and not report.in_progress:
+        if created or (not report.zip_report_archive and not report.in_progress):
             # report hasn't been generated yet - schedule its creation
+            print("IN VIEW - SCHEDULING")
             generate_zip_archive.delay(
                 exam_id=exam.pk, user_id=request.user.pk
             )  # todo make sure the task actually got scheduled
+            print("IN VIEW - SCHEDULED")
             return Response(status=status.HTTP_202_ACCEPTED)
 
+        print(
+            f"IN PROGRESS: {str(report.in_progress)} - ARCHIVE f{report.zip_report_archive}"
+        )
         if report.in_progress:
             return Response(
                 status=status.HTTP_206_PARTIAL_CONTENT,
@@ -453,6 +458,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 },
             )
         else:
+            print("EXAM_REPORT EXISTS AND ISN'T IN PROGRESS, IT ALSO HAS A ZIP FILE")
             filename = report.zip_report_archive.name.split("/")[-1]
             return FileResponse(
                 report.zip_report_archive, as_attachment=True, filename=filename
