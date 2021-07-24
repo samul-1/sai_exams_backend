@@ -436,16 +436,16 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def zip_archive(self, request, **kwargs):
-        # from core.celery import generate_zip_archive
+        from core.celery import generate_zip_archive_task
 
         exam = self.get_object()
         report, created = ExamReport.objects.get_or_create(exam=exam)
         if created or (not report.zip_report_archive and not report.in_progress):
             # report hasn't been generated yet - schedule its creation
             logger.warning("NEW VERSION")
-            # generate_zip_archive.delay(
-            #     exam_id=exam.pk, user_id=request.user.pk
-            # )  # todo make sure the task actually got scheduled
+            generate_zip_archive_task.delay(
+                exam_id=exam.pk, user_id=request.user.pk
+            )  # todo make sure the task actually got scheduled
             logger.warning("NOT SCHEDULING A DAMN THING")
             return Response(status=status.HTTP_202_ACCEPTED)
 

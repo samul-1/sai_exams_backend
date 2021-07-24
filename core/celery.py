@@ -21,11 +21,13 @@ app.autodiscover_tasks()
 logger = logging.getLogger(__name__)
 
 
-# @app.task(bind=True)
-# def generate_zip_archive(self, exam_id, user_id):
-#     from jsplatform.models import Exam, ExamReport
+@app.task(bind=True)
+def generate_zip_archive_task(self, exam_id, user_id):
+    # from jsplatform.models import Exam, ExamReport
 
-#     logging.warning("IN AND OUT OF HERE")
+    logging.warning("IN AND OUT OF HERE")
+
+
 # report = ExamReport.objects.get(exam_id=exam_id)
 # zip_archive = report.generate_zip_archive()
 # logger.warning(
