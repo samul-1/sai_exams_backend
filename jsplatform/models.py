@@ -313,56 +313,56 @@ class ExamReport(models.Model):
         if creating:
             self.generate_csv()
 
-    def generate_zip_archive(self):
-        # delete the previous zip archive and reset the report count to make
-        # this method idempotent (allows easy retrying in celery task)
-        logger.warning("------- INSIDE OF GENERATE ZIP ARCHIVE MODEL METHOD -------")
-        if self.zip_report_archive:
-            self.zip_report_archive.delete()
-        self.generated_reports_count = 0
+    # def generate_zip_archive(self):
+    #     # delete the previous zip archive and reset the report count to make
+    #     # this method idempotent (allows easy retrying in celery task)
+    #     logger.warning("------- INSIDE OF GENERATE ZIP ARCHIVE MODEL METHOD -------")
+    #     if self.zip_report_archive:
+    #         self.zip_report_archive.delete()
+    #     self.generated_reports_count = 0
 
-        self.in_progress = True
-        self.save()
-        logger.warning("------- EXAM REPORT IS NOW IN PROGRESS -------")
-        # first generate pdf files for all exam participants
-        participations = self.exam.participations.all()
-        for participation in participations:
-            participation.generate_pdf()
-            logger.warning(f"generated {participation.user.full_name} report")
-            self.generated_reports_count += 1
-            self.save()
+    #     self.in_progress = True
+    #     self.save()
+    #     logger.warning("------- EXAM REPORT IS NOW IN PROGRESS -------")
+    #     # first generate pdf files for all exam participants
+    #     participations = self.exam.participations.all()
+    #     for participation in participations:
+    #         participation.generate_pdf()
+    #         logger.warning(f"generated {participation.user.full_name} report")
+    #         self.generated_reports_count += 1
+    #         self.save()
 
-        zip_subdir = "reports"
-        zip_filename = "%s.zip" % self.exam.name
+    #     zip_subdir = "reports"
+    #     zip_filename = "%s.zip" % self.exam.name
 
-        # get path of files to zip
-        filenames = [f.path for f in map(lambda p: p.pdf_report, participations)]
-        # logger.warning(filenames)
-        s = BytesIO()
-        zf = zipfile.ZipFile(s, "w")
+    #     # get path of files to zip
+    #     filenames = [f.path for f in map(lambda p: p.pdf_report, participations)]
+    #     # logger.warning(filenames)
+    #     s = BytesIO()
+    #     zf = zipfile.ZipFile(s, "w")
 
-        for fpath in filenames:
-            logger.warning(f"about to process fpath {fpath}")
-            # Calculate path for file in zip
-            fdir, fname = os.path.split(fpath)
-            zip_path = os.path.join(zip_subdir, fname)
+    #     for fpath in filenames:
+    #         logger.warning(f"about to process fpath {fpath}")
+    #         # Calculate path for file in zip
+    #         fdir, fname = os.path.split(fpath)
+    #         zip_path = os.path.join(zip_subdir, fname)
 
-            # Add file, at correct path
-            zf.write(fpath, zip_path)
-            logger.warning(f"done processing {fpath}")
+    #         # Add file, at correct path
+    #         zf.write(fpath, zip_path)
+    #         logger.warning(f"done processing {fpath}")
 
-        zf.close()
+    #     zf.close()
 
-        logger.warning("FINISHED WRITING TO ZIP")
-        in_memory_file = InMemoryUploadedFile(
-            s, None, zip_filename, "application/zip", s.__sizeof__(), None
-        )
-        self.zip_report_archive.save("%s.zip" % self.exam.name, in_memory_file)
-        logger.warning(f"saved {self.zip_report_archive.path}")
-        self.in_progress = False
-        self.save()
-        # for debugging
-        return self.zip_report_archive
+    #     logger.warning("FINISHED WRITING TO ZIP")
+    #     in_memory_file = InMemoryUploadedFile(
+    #         s, None, zip_filename, "application/zip", s.__sizeof__(), None
+    #     )
+    #     self.zip_report_archive.save("%s.zip" % self.exam.name, in_memory_file)
+    #     logger.warning(f"saved {self.zip_report_archive.path}")
+    #     self.in_progress = False
+    #     self.save()
+    #     # for debugging
+    #     return self.zip_report_archive
 
     def generate_csv(self):
         from .csv import get_csv_from_exam
