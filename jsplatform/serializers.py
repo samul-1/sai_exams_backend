@@ -6,8 +6,17 @@ from rest_framework import serializers
 from users.models import User
 from users.serializers import UserSerializer
 
-from .models import (Answer, Category, Exam, Exercise, FrontendError,
-                     GivenAnswer, Question, Submission, TestCase)
+from .models import (
+    Answer,
+    Category,
+    Exam,
+    Exercise,
+    FrontendError,
+    GivenAnswer,
+    Question,
+    Submission,
+    TestCase,
+)
 
 
 class FrontendErrorSerializer(serializers.ModelSerializer):
@@ -88,6 +97,8 @@ class ExamSerializer(serializers.ModelSerializer):
             e.is_valid(raise_exception=True)
             e.save(exam=exam, category=cat)
 
+        # get rid of the frontend generated uuid's
+        Category.objects.filter(exam=exam).update(tmp_uuid=None)
         return exam
 
     def update(self, instance, validated_data):
@@ -207,6 +218,9 @@ class ExamSerializer(serializers.ModelSerializer):
         # remove any exercises for which data wasn't sent (i.e. user deleted them)
         for exercise in exercises:
             exercise.delete()
+
+        # get rid of the frontend generated uuid's
+        Category.objects.filter(exam=instance).update(tmp_uuid=None)
 
         return instance
 
@@ -424,6 +438,7 @@ class AnswerSerializer(serializers.ModelSerializer):
             self.fields["is_selected"] = serializers.SerializerMethodField()
 
     def get_is_selected(self, obj):
+        # todo make a selected_by method in Answer
         user = self.context["request"].user
         return GivenAnswer.objects.filter(user=user, answer=obj).exists()
 

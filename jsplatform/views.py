@@ -3,6 +3,7 @@ import logging
 from functools import wraps
 
 from core import constants
+from django.db import transaction
 from django.db.utils import IntegrityError
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -131,6 +132,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         return context
 
+    @transaction.atomic
     def update(self, request, pk=None):
         exam = self.get_object()
         if exam.locked_by is not None and request.user != exam.locked_by:
@@ -140,6 +142,10 @@ class ExamViewSet(viewsets.ModelViewSet):
             )
 
         return super(ExamViewSet, self).update(request)
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"])
     def mock(self, request, **kwargs):
@@ -442,14 +448,9 @@ class ExamViewSet(viewsets.ModelViewSet):
         report, created = ExamReport.objects.get_or_create(exam=exam)
         if created or (not report.zip_report_archive and not report.in_progress):
             # report hasn't been generated yet - schedule its creation
-            logger.warning("NEW VERSION 2.0")
             generate_zip_task.delay(exam_id=exam.pk, user_id=request.user.pk)
-            logger.warning("SCHEDULED!!!")
             return Response(status=status.HTTP_202_ACCEPTED)
 
-        logger.warning(
-            f"IN PROGRESS: {str(report.in_progress)} - ARCHIVE {report.zip_report_archive}"
-        )
         if report.in_progress:
             return Response(
                 status=status.HTTP_206_PARTIAL_CONTENT,
@@ -459,9 +460,6 @@ class ExamViewSet(viewsets.ModelViewSet):
                 },
             )
         else:
-            logger.warning(
-                "EXAM_REPORT EXISTS AND ISN'T IN PROGRESS, IT ALSO HAS A ZIP FILE"
-            )
             filename = report.zip_report_archive.name.split("/")[-1]
             return FileResponse(
                 report.zip_report_archive, as_attachment=True, filename=filename

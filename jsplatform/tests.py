@@ -819,9 +819,14 @@ class ExamTestCase(TestCase):
         response = client.get(f"/exams/{new_exam_id}/")
         self.assertEqual(response.status_code, 200)
 
+    def create_and_update_exam(self):
+        # tests creation of new exams and updating existing exams
+        pass
+
     def test_progress_and_stats(self):
         # shows that as exam participants answer question, their `completed_items_count` increases, and that when
         # an answer is selected by a user, its `selections` count increases
+        # todo add tests for the new method answer.is_selected_by(user)
         cat2 = Category.objects.create(
             exam=self.exam, name="cat2", amount=2, item_type="q", randomize=False
         )

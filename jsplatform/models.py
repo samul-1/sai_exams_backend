@@ -21,14 +21,9 @@ from users.models import User
 
 from jsplatform.exceptions import ExamCompletedException, NoGoingBackException
 
-from .exceptions import (
-    ExamNotOverYet,
-    InvalidAnswerException,
-    InvalidCategoryType,
-    NotEligibleForTurningIn,
-    OutOfCategories,
-    SubmissionAlreadyTurnedIn,
-)
+from .exceptions import (ExamNotOverYet, InvalidAnswerException,
+                         InvalidCategoryType, NotEligibleForTurningIn,
+                         OutOfCategories, SubmissionAlreadyTurnedIn)
 from .pdf import preprocess_html_for_pdf, render_to_pdf
 from .tex import tex_to_svg
 from .utils import run_code_in_vm
@@ -316,19 +311,16 @@ class ExamReport(models.Model):
     def generate_zip_archive(self):
         # delete the previous zip archive and reset the report count to make
         # this method idempotent (allows easy retrying in celery task)
-        logger.warning("------- INSIDE OF GENERATE ZIP ARCHIVE MODEL METHOD -------")
         if self.zip_report_archive:
             self.zip_report_archive.delete()
         self.generated_reports_count = 0
 
         self.in_progress = True
         self.save()
-        logger.warning("------- EXAM REPORT IS NOW IN PROGRESS -------")
         # first generate pdf files for all exam participants
         participations = self.exam.participations.all()
         for participation in participations:
             participation.generate_pdf()
-            logger.warning(f"generated {participation.user.full_name} report")
             self.generated_reports_count += 1
             self.save()
 
@@ -342,23 +334,19 @@ class ExamReport(models.Model):
         zf = zipfile.ZipFile(s, "w")
 
         for fpath in filenames:
-            logger.warning(f"about to process fpath {fpath}")
             # Calculate path for file in zip
             fdir, fname = os.path.split(fpath)
             zip_path = os.path.join(zip_subdir, fname)
 
             # Add file, at correct path
             zf.write(fpath, zip_path)
-            logger.warning(f"done processing {fpath}")
 
         zf.close()
 
-        logger.warning("FINISHED WRITING TO ZIP")
         in_memory_file = InMemoryUploadedFile(
             s, None, zip_filename, "application/zip", s.__sizeof__(), None
         )
         self.zip_report_archive.save("%s.zip" % self.exam.name, in_memory_file)
-        logger.warning(f"saved {self.zip_report_archive.path}")
         self.in_progress = False
         self.save()
         # for debugging
@@ -735,7 +723,6 @@ class ExamProgress(models.Model):
         or submitted solutions
         """
         if self.pdf_report:
-            logger.warning(f"deleting {self.user.full_name} report")
             self.pdf_report.delete()
 
         template_name = constants.PDF_REPORT_TEMPLATE_NAME
@@ -1008,7 +995,6 @@ def delete_files_when_row_deleted_from_db(sender, instance, **kwargs):
     for field in sender._meta.concrete_fields:
         if isinstance(field, models.FileField):
             instance_file_field = getattr(instance, field.name)
-            logger.warning(f"deleting {instance_file_field}")
             delete_file_if_unused(sender, instance, field, instance_file_field)
 
 

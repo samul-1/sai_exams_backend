@@ -25,9 +25,5 @@ logger = logging.getLogger(__name__)
 def generate_zip_task(self, exam_id, user_id):
     from jsplatform.models import ExamReport
 
-    logging.warning("INSIDE THE TASK, GENERATING ZIP...")
     report = ExamReport.objects.get(exam_id=exam_id)
-    zip_archive = report.generate_zip_archive()
-    logger.warning(
-        f"CELERY DONE GENERATING ZIP ARCHIVE: {zip_archive.name} {zip_archive.path}"
-    )
+    report.generate_zip_archive()
