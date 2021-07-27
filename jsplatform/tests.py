@@ -2,12 +2,17 @@ import json
 
 from _datetime import timedelta
 from django.db import transaction
+from django.db.utils import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
 from users.models import User
 
-from jsplatform.exceptions import ExamCompletedException
+from jsplatform.exceptions import (
+    ExamCompletedException,
+    InvalidAnswerException,
+    TooManyAnswers,
+)
 from jsplatform.models import (
     Answer,
     Category,
@@ -590,19 +595,19 @@ class ExaStateTestCase(TestCase):
 
         # show that all and only the assigned questions are retrieved, in the
         # same order as they were assigned to each participant
-        progress_as_dict1 = exam_progress1.get_progress_as_dict()
+        progress_as_dict1 = exam_progress1.get_progress_as_dict(for_pdf=True)
         self.assertListEqual(
             [self.q1.pk, self.q2.pk, self.q3.pk],
             [q["id"] for q in progress_as_dict1["questions"]],
         )
 
-        progress_as_dict2 = exam_progress2.get_progress_as_dict()
+        progress_as_dict2 = exam_progress2.get_progress_as_dict(for_pdf=True)
         self.assertListEqual(
             [self.q2.pk, self.q1.pk, self.q3.pk],
             [q["id"] for q in progress_as_dict2["questions"]],
         )
 
-        progress_as_dict3 = exam_progress3.get_progress_as_dict()
+        progress_as_dict3 = exam_progress3.get_progress_as_dict(for_pdf=True)
         self.assertListEqual(
             [self.q1.pk, self.q4.pk, self.q2.pk],
             [q["id"] for q in progress_as_dict3["questions"]],
@@ -819,8 +824,148 @@ class ExamTestCase(TestCase):
         response = client.get(f"/exams/{new_exam_id}/")
         self.assertEqual(response.status_code, 200)
 
-    def create_and_update_exam(self):
+    def test_create_and_update_exam(self):
         # tests creation of new exams and updating existing exams
+        cat1_uuid = "13d14bd4-7638-43c1-be16-857995b012f7"
+        cat2_uuid = "5957ca81-0155-4ae5-a185-7eedccce3545"
+        cat3_uuid = "3d23e04b-0dd3-40ef-ab6b-53e88c9261f9"
+
+        post_request_body = {
+            "questions": [
+                {
+                    "answers": [],
+                    "text": "open question in category 1",
+                    "question_type": "o",
+                    "accepts_multiple_answers": False,
+                    "category_uuid": cat1_uuid,
+                },
+                {
+                    "answers": [
+                        {
+                            "text": "wrong",
+                            "is_right_answer": False,
+                        },
+                        {
+                            "text": "right",
+                            "is_right_answer": False,
+                        },
+                    ],
+                    "text": "multiple choice question 1 in category 1",
+                    "question_type": "m",
+                    "accepts_multiple_answers": False,
+                    "category_uuid": cat2_uuid,
+                },
+                {
+                    "answers": [
+                        {
+                            "text": "right",
+                            "is_right_answer": True,
+                        },
+                        {
+                            "text": "wrong",
+                            "is_right_answer": False,
+                        },
+                    ],
+                    "text": "question that accepts multiple answers in category 2",
+                    "question_type": "m",
+                    "accepts_multiple_answers": True,
+                    "category_uuid": cat2_uuid,
+                },
+                {
+                    "answers": [
+                        {
+                            "text": "wrong",
+                            "is_right_answer": False,
+                        },
+                        {
+                            "text": "right",
+                            "is_right_answer": True,
+                        },
+                    ],
+                    "text": "question 1 in category 3",
+                    "question_type": "m",
+                    "accepts_multiple_answers": False,
+                    "category_uuid": cat3_uuid,
+                },
+                {
+                    "answers": [
+                        {
+                            "text": "right",
+                            "is_right_answer": True,
+                        },
+                        {
+                            "text": "wrong",
+                            "is_right_answer": False,
+                        },
+                    ],
+                    "text": "question 2 in category 3",
+                    "question_type": "m",
+                    "accepts_multiple_answers": False,
+                    "category_uuid": cat3_uuid,
+                },
+            ],
+            "exercises": [],
+            "categories": [
+                {
+                    "introduction_text": "",
+                    "amount": 1,
+                    "name": "cat1",
+                    "item_type": "q",
+                    "is_aggregated_question": False,
+                    "randomize": True,
+                    "tmp_uuid": cat1_uuid,
+                },
+                {
+                    "introduction_text": "",
+                    "name": "cat2",
+                    "item_type": "q",
+                    "amount": 1,
+                    "is_aggregated_question": False,
+                    "randomize": True,
+                    "tmp_uuid": cat2_uuid,
+                },
+                {
+                    "introduction_text": "",
+                    "name": "cat3",
+                    "item_type": "q",
+                    "amount": 1,
+                    "is_aggregated_question": False,
+                    "randomize": True,
+                    "tmp_uuid": cat3_uuid,
+                },
+            ],
+            "name": "Test exam 1",
+            "draft": False,
+            "begin_timestamp": "2021-07-12 09:00:00",
+            "end_timestamp": "2021-07-12 10:00:00",
+            "allow_going_back": True,
+            "randomize_questions": True,
+            "randomize_exercises": True,
+            "allowed_teachers": [],
+        }
+        client = APIClient()
+
+        client.force_authenticate(user=self.teacher)
+        response = client.post("/exams/", post_request_body)
+        self.assertEquals(response.status_code, 201)
+
+        # exam has been created
+        new_exam = Exam.objects.get(name="Test exam 1")
+        categories = new_exam.categories.all()
+
+        # all 3 categories have been created
+        self.assertSetEqual(
+            set([c.name for c in categories]), set(["cat1", "cat2", "cat3"])
+        )
+
+        # all 5 questions have been created
+        questions = new_exam.questions.all()
+        self.assertEquals(questions.count(), 5)
+
+        # check correct properties of all 5 questions
+        q1 = questions.get(text="open question in category 1")
+        self.assertEquals(q1.category, categories.get(name="cat1"))
+        # todo check all the other properties
         pass
 
     def test_progress_and_stats(self):
@@ -1137,3 +1282,94 @@ class ExamTestCase(TestCase):
             },
         )
         self.assertEqual(response.status_code, 410)
+
+
+class IntegrityTestCase(TestCase):
+    """
+    Tests database integrity constraints
+    """
+
+    def setUp(self):
+        now = timezone.localtime(timezone.now())
+        tomorrow = now + timedelta(days=1)
+
+        self.student1 = User.objects.create(
+            username="student1", email="student1@studenti.unipi.it"
+        )
+        self.student2 = User.objects.create(
+            username="student2", email="student2@studenti.unipi.it"
+        )
+
+        self.teacher = User.objects.create(username="teacher", email="teacher@unipi.it")
+
+        self.exam = Exam.objects.create(
+            name="Test exam", begin_timestamp=now, end_timestamp=tomorrow, draft=False
+        )
+
+        cat1 = Category.objects.create(
+            exam=self.exam, name="cat1", amount=3, item_type="q", randomize=False
+        )
+        self.q1 = Question.objects.create(
+            exam=self.exam, text="question1", category=cat1
+        )
+        self.q2 = Question.objects.create(
+            exam=self.exam,
+            text="question2",
+            category=cat1,
+            accepts_multiple_answers=True,
+        )
+        self.q3 = Question.objects.create(
+            exam=self.exam, text="open_question", category=cat1, question_type="o"
+        )
+
+        self.q1a1 = Answer.objects.create(question=self.q1, text="abc")
+        self.q1a2 = Answer.objects.create(question=self.q1, text="abc")
+        self.q1a3 = Answer.objects.create(question=self.q1, text="abc")
+        self.q2a1 = Answer.objects.create(question=self.q2, text="abc")
+        self.q2a2 = Answer.objects.create(question=self.q2, text="abc")
+        self.q2a3 = Answer.objects.create(question=self.q2, text="abc")
+        self.q3a1 = Answer.objects.create(question=self.q3, text="abc")
+        self.q3a2 = Answer.objects.create(question=self.q3, text="abc")
+        self.q3a3 = Answer.objects.create(question=self.q3, text="abc")
+
+    def test_given_answers_integrity(self):
+        with self.assertRaises(InvalidAnswerException):
+            # `q2a1` does not belong to the answer set of `q1`
+            GivenAnswer.objects.create(
+                user=self.student1, answer=self.q2a1, question=self.q1
+            )
+
+        GivenAnswer.objects.create(
+            user=self.student1, answer=self.q1a1, question=self.q1
+        )
+
+        with self.assertRaises(TooManyAnswers):
+            # question doesn't accept multiple answers, and one has been given already by this user
+            GivenAnswer.objects.create(
+                user=self.student1, answer=self.q1a2, question=self.q1
+            )
+
+        # other students can still answer that question
+        GivenAnswer.objects.create(
+            user=self.student2, answer=self.q1a1, question=self.q1
+        )
+
+        # trying to create two GivenAnswers to a question that accepts multiple answers is fine
+        GivenAnswer.objects.create(
+            user=self.student1, answer=self.q2a1, question=self.q2
+        )
+        GivenAnswer.objects.create(
+            user=self.student1, answer=self.q2a2, question=self.q2
+        )
+
+        # however, you can't create multiple GivenAnswers that reference the same answer
+        with transaction.atomic():  # need this to keep django transaction manager from complaining
+            with self.assertRaises(IntegrityError):
+                GivenAnswer.objects.create(
+                    user=self.student1, answer=self.q2a2, question=self.q2
+                )
+
+        # open questions only accept one answer per user
+        GivenAnswer.objects.create(user=self.student1, text="abc", question=self.q3)
+        with self.assertRaises(TooManyAnswers):
+            GivenAnswer.objects.create(user=self.student1, text="def", question=self.q3)

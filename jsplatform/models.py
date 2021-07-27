@@ -19,11 +19,20 @@ from django.db.models import Count, Exists, F, JSONField, OuterRef, Q
 from django.utils import timezone
 from users.models import User
 
-from jsplatform.exceptions import ExamCompletedException, NoGoingBackException
+from jsplatform.exceptions import (
+    ExamCompletedException,
+    NoGoingBackException,
+    TooManyAnswers,
+)
 
-from .exceptions import (ExamNotOverYet, InvalidAnswerException,
-                         InvalidCategoryType, NotEligibleForTurningIn,
-                         OutOfCategories, SubmissionAlreadyTurnedIn)
+from .exceptions import (
+    ExamNotOverYet,
+    InvalidAnswerException,
+    InvalidCategoryType,
+    NotEligibleForTurningIn,
+    OutOfCategories,
+    SubmissionAlreadyTurnedIn,
+)
 from .pdf import preprocess_html_for_pdf, render_to_pdf
 from .tex import tex_to_svg
 from .utils import run_code_in_vm
@@ -964,19 +973,16 @@ class GivenAnswer(models.Model):
         if self.answer is not None and self.answer not in self.question.answers.all():
             raise InvalidAnswerException
 
-        # creating = not self.pk  # see if the objects exists already or is being created
-        super(GivenAnswer, self).save(*args, **kwargs)  # create the object
-        # if creating and self.answer is not None:
-        #     # increment number of selections for selected answer
-        #     self.answer.selections += 1
-        #     self.answer.save()
+        if (
+            self.pk is None  # trying to create a new object
+            and not self.question.accepts_multiple_answers
+            and GivenAnswer.objects.filter(
+                question=self.question, user=self.user
+            ).exists()
+        ):
+            raise TooManyAnswers
 
-    # def clean(self):
-    #     if self.answer is not None and self.answer.question.pk != self.question.pk:
-    #         raise ValidationError(
-    #             "GivenAnswer's answer does not belong to the question"
-    #         )
-    #     return super().clean()
+        super(GivenAnswer, self).save(*args, **kwargs)
 
 
 """

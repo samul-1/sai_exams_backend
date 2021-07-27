@@ -22,6 +22,10 @@ class InvalidAnswerException(Exception):
     pass
 
 
+class TooManyAnswers(Exception):
+    pass
+
+
 class ExamNotOverYet(Exception):
     pass
 
