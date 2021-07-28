@@ -168,9 +168,7 @@ class Exam(models.Model):
         current progress in terms of how many items they've completed
         """
         # total_items = self.get_number_of_items_per_exam()
-        participants = self.participations.all().prefetch_related(
-            "user"
-        )  # todo select_related
+        participants = self.participations.all().select_related("user")
         participants_count = participants.count()
         total_items_count = self.get_number_of_items_per_exam()
         progress_sum = 0
@@ -214,7 +212,6 @@ class Exam(models.Model):
         Returns a couple <questions, exercises> representing a mock exam
         """
         progress = ExamProgress.objects.create(exam=self, user=user)
-        progress.generate_items()  # todo comment this line out
 
         # save the m2m fields as lists as the related object will be deleted
         questions = [q for q in progress.questions.all()]
@@ -275,7 +272,7 @@ class Category(models.Model):
         return self.name
 
     def save(self, render_tex=True, *args, **kwargs):
-        text_changed = not self.pk or (
+        text_changed = self.pk is None or (
             self.introduction_text != Category.objects.get(pk=self.pk).introduction_text
         )
         super(Category, self).save(*args, **kwargs)
@@ -312,7 +309,9 @@ class ExamReport(models.Model):
             # prevent creation of report if exam is still undergoing
             raise ExamNotOverYet
 
-        creating = not self.pk  # see if the objects exists already or is being created
+        creating = (
+            self.pk is None
+        )  # see if the objects exists already or is being created
         super(ExamReport, self).save(*args, **kwargs)  # create the object
         if creating:
             self.generate_csv()
@@ -407,7 +406,7 @@ class Question(models.Model):
             self.category.item_type != "q" or self.category.exam != self.exam
         ):
             raise InvalidCategoryType
-        text_changed = not self.pk or (
+        text_changed = self.pk is None or (
             self.text != Question.objects.get(pk=self.pk).text
         )
 
@@ -481,8 +480,7 @@ class Exercise(models.Model):
         ):
             raise InvalidCategoryType
 
-        # todo change not self.pk to `self.pk is None` here and everywhere else where it appears
-        text_changed = not self.pk or (
+        text_changed = self.pk is None or (
             self.text != Exercise.objects.get(pk=self.pk).text
         )
 
@@ -492,7 +490,6 @@ class Exercise(models.Model):
             self.rendered_text = tex_to_svg(self.text)
             self.save(render_tex=False)
 
-    # todo make this a property
     def public_testcases(self):
         """
         Returns all the *public* test cases for this question
@@ -707,13 +704,14 @@ class ExamProgress(models.Model):
                     {
                         "text": preprocess_fn(a.rendered_text if for_pdf else a.text),
                         "is_right_answer": a.is_right_answer,
-                        "selected": a.pk
-                        in list(
-                            map(
-                                lambda g: g.answer.pk if g.answer is not None else 0,
-                                given_answers,
-                            )
-                        ),  # todo make a selected_by(user) method in Answer
+                        "selected": a.is_selected_by(user=self.user)
+                        # a.pk
+                        # in list(
+                        #     map(
+                        #         lambda g: g.answer.pk if g.answer is not None else 0,
+                        #         given_answers,
+                        #     )
+                        # ),
                     }
                     for a in question.answers.all()
                 ]
@@ -825,7 +823,7 @@ class Submission(models.Model):
         ret = self.exercise.testcases.count()
         return ret - self.get_passed_testcases()
 
-    # todo make this a property
+    @property
     def public_details(self):
         """
         Returns a subset of the details field dict containing information about public tests only,
@@ -851,7 +849,9 @@ class Submission(models.Model):
         }
 
     def save(self, *args, **kwargs):
-        creating = not self.pk  # see if the objects exists already or is being created
+        creating = (
+            self.pk is None
+        )  # see if the objects exists already or is being created
         super(Submission, self).save(*args, **kwargs)  # create the object
         if creating:  # AFTER the object has been created, run code
             # doing things in this order prevent the calls to save() inside eval_submission()
@@ -923,7 +923,9 @@ class Answer(models.Model):
         return self.text
 
     def save(self, render_tex=True, *args, **kwargs):
-        text_changed = not self.pk or (self.text != Answer.objects.get(pk=self.pk).text)
+        text_changed = self.pk is None or (
+            self.text != Answer.objects.get(pk=self.pk).text
+        )
         super(Answer, self).save(*args, **kwargs)
         if render_tex and text_changed:
             self.rendered_text = tex_to_svg(self.text)
@@ -932,6 +934,9 @@ class Answer(models.Model):
     @property
     def selections(self):
         return GivenAnswer.objects.filter(answer=self).count()
+
+    def is_selected_by(self, user):
+        return GivenAnswer.objects.filter(user=user, answer=self).exists()
 
 
 class GivenAnswer(models.Model):

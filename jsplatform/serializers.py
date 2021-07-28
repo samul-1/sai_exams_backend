@@ -25,7 +25,32 @@ class FrontendErrorSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-# todo make ExamPreviewSerializer
+class ExamPreviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Exam
+        fields = [
+            "id",
+            "name",
+            "draft",
+            "begin_timestamp",
+            "end_timestamp",
+            "allow_going_back",
+            "created_by",
+            "closed",
+            "closed_at",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super(ExamPreviewSerializer, self).__init__(*args, **kwargs)
+        self.fields["created_by"] = UserSerializer(read_only=True)
+        self.fields["locked_by"] = serializers.ReadOnlyField(
+            source="locked_by.full_name"
+        )
+
+        # make the serializer read-only
+        setattr(self.Meta, "read_only_fields", [*self.fields])
+
+
 class ExamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exam
@@ -54,7 +79,9 @@ class ExamSerializer(serializers.ModelSerializer):
                 queryset=User.objects.filter(is_teacher=True),
             )
             self.fields["closed"] = serializers.BooleanField(required=False)
-            self.fields["locked_by"] = serializers.SerializerMethodField(read_only=True)
+            self.fields["locked_by"] = serializers.ReadOnlyField(
+                source="locked_by.full_name"
+            )
             self.fields["closed_at"] = serializers.DateTimeField(read_only=True)
         else:
             # if requesting user isn't a teacher, show only the exercise/question that's
@@ -252,10 +279,6 @@ class ExamSerializer(serializers.ModelSerializer):
         except KeyError:
             return None
 
-    def get_locked_by(self, obj):
-        # todo see if you can just use a ReadOnlyField
-        return obj.locked_by.full_name if obj.locked_by is not None else None
-
     def get_ordering(self, obj):
         user = self.context["request"].user
         return obj.participations.get(user=user).current_item_cursor
@@ -438,9 +461,8 @@ class AnswerSerializer(serializers.ModelSerializer):
             self.fields["is_selected"] = serializers.SerializerMethodField()
 
     def get_is_selected(self, obj):
-        # todo make a selected_by method in Answer
         user = self.context["request"].user
-        return GivenAnswer.objects.filter(user=user, answer=obj).exists()
+        return obj.is_selected_by(user=user)
 
 
 class ExerciseSerializer(serializers.ModelSerializer):

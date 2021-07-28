@@ -37,6 +37,7 @@ django-silk = "*"
 celery = "*"
 django-celery-results = "*"
 redis = "*"
+coverage = "*"
 
 [dev-packages]
 

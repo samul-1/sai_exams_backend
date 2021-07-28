@@ -507,7 +507,7 @@ class QuestionViewSetTestCase(TestCase):
     pass
 
 
-class ExaStateTestCase(TestCase):
+class ExamStateTestCase(TestCase):
     """
     Tests that exam items assigned to participants are retrieved correctly in order to generate
     post-exam reports
@@ -534,7 +534,10 @@ class ExaStateTestCase(TestCase):
             exam=self.exam, name="cat1", amount=3, item_type="q", randomize=False
         )
         self.q1 = Question.objects.create(
-            exam=self.exam, text="question1", category=cat1
+            exam=self.exam,
+            text="question1",
+            category=cat1,
+            accepts_multiple_answers=True,
         )
         self.q2 = Question.objects.create(
             exam=self.exam, text="question2", category=cat1
@@ -545,6 +548,15 @@ class ExaStateTestCase(TestCase):
         self.q4 = Question.objects.create(
             exam=self.exam, text="question4", category=cat1
         )
+
+        self.q1a1 = Answer.objects.create(question=self.q1, text="abc")
+        self.q1a2 = Answer.objects.create(question=self.q1, text="abc")
+        self.q2a1 = Answer.objects.create(question=self.q2, text="abc")
+        self.q2a2 = Answer.objects.create(question=self.q2, text="abc")
+
+    def test_exam_progress(self):
+        # todo test exam.get_current_progress
+        pass
 
     def test_retrieve_assigned_items_sorted(self):
         exam_progress1 = ExamProgress(user=self.student1, exam=self.exam)
@@ -601,10 +613,29 @@ class ExaStateTestCase(TestCase):
             [q["id"] for q in progress_as_dict1["questions"]],
         )
 
+        GivenAnswer.objects.create(
+            user=self.student2, question=self.q2, answer=self.q2a1
+        )
+        GivenAnswer.objects.create(
+            user=self.student2, question=self.q1, answer=self.q1a1
+        )
+        GivenAnswer.objects.create(
+            user=self.student2, question=self.q1, answer=self.q1a2
+        )
         progress_as_dict2 = exam_progress2.get_progress_as_dict(for_pdf=True)
         self.assertListEqual(
             [self.q2.pk, self.q1.pk, self.q3.pk],
             [q["id"] for q in progress_as_dict2["questions"]],
+        )
+
+        # given answers were correctly recorded
+        self.assertListEqual(
+            [True, False],
+            [a["selected"] for a in progress_as_dict2["questions"][0]["answers"]],
+        )
+        self.assertListEqual(
+            [True, True],
+            [a["selected"] for a in progress_as_dict2["questions"][1]["answers"]],
         )
 
         progress_as_dict3 = exam_progress3.get_progress_as_dict(for_pdf=True)
@@ -637,7 +668,11 @@ class ExamTestCase(TestCase):
         self.teacher = User.objects.create(username="teacher", email="teacher@unipi.it")
 
         self.exam = Exam.objects.create(
-            name="Test exam", begin_timestamp=now, end_timestamp=tomorrow, draft=False
+            name="Test exam",
+            begin_timestamp=now,
+            end_timestamp=tomorrow,
+            draft=False,
+            created_by=self.teacher,
         )
 
         cat1 = Category.objects.create(
@@ -831,6 +866,14 @@ class ExamTestCase(TestCase):
         cat3_uuid = "3d23e04b-0dd3-40ef-ab6b-53e88c9261f9"
 
         post_request_body = {
+            "name": "Test exam 1",
+            "draft": False,
+            "begin_timestamp": "2021-07-12 09:00:00",
+            "end_timestamp": "2021-07-12 10:00:00",
+            "allow_going_back": True,
+            "randomize_questions": True,
+            "randomize_exercises": False,
+            "allowed_teachers": [],
             "questions": [
                 {
                     "answers": [],
@@ -842,27 +885,27 @@ class ExamTestCase(TestCase):
                 {
                     "answers": [
                         {
-                            "text": "wrong",
+                            "text": "wrong1",
                             "is_right_answer": False,
                         },
                         {
-                            "text": "right",
-                            "is_right_answer": False,
+                            "text": "right1",
+                            "is_right_answer": True,
                         },
                     ],
                     "text": "multiple choice question 1 in category 1",
                     "question_type": "m",
                     "accepts_multiple_answers": False,
-                    "category_uuid": cat2_uuid,
+                    "category_uuid": cat1_uuid,
                 },
                 {
                     "answers": [
                         {
-                            "text": "right",
+                            "text": "right2",
                             "is_right_answer": True,
                         },
                         {
-                            "text": "wrong",
+                            "text": "wrong2",
                             "is_right_answer": False,
                         },
                     ],
@@ -870,38 +913,6 @@ class ExamTestCase(TestCase):
                     "question_type": "m",
                     "accepts_multiple_answers": True,
                     "category_uuid": cat2_uuid,
-                },
-                {
-                    "answers": [
-                        {
-                            "text": "wrong",
-                            "is_right_answer": False,
-                        },
-                        {
-                            "text": "right",
-                            "is_right_answer": True,
-                        },
-                    ],
-                    "text": "question 1 in category 3",
-                    "question_type": "m",
-                    "accepts_multiple_answers": False,
-                    "category_uuid": cat3_uuid,
-                },
-                {
-                    "answers": [
-                        {
-                            "text": "right",
-                            "is_right_answer": True,
-                        },
-                        {
-                            "text": "wrong",
-                            "is_right_answer": False,
-                        },
-                    ],
-                    "text": "question 2 in category 3",
-                    "question_type": "m",
-                    "accepts_multiple_answers": False,
-                    "category_uuid": cat3_uuid,
                 },
             ],
             "exercises": [],
@@ -924,24 +935,7 @@ class ExamTestCase(TestCase):
                     "randomize": True,
                     "tmp_uuid": cat2_uuid,
                 },
-                {
-                    "introduction_text": "",
-                    "name": "cat3",
-                    "item_type": "q",
-                    "amount": 1,
-                    "is_aggregated_question": False,
-                    "randomize": True,
-                    "tmp_uuid": cat3_uuid,
-                },
             ],
-            "name": "Test exam 1",
-            "draft": False,
-            "begin_timestamp": "2021-07-12 09:00:00",
-            "end_timestamp": "2021-07-12 10:00:00",
-            "allow_going_back": True,
-            "randomize_questions": True,
-            "randomize_exercises": True,
-            "allowed_teachers": [],
         }
         client = APIClient()
 
@@ -951,27 +945,147 @@ class ExamTestCase(TestCase):
 
         # exam has been created
         new_exam = Exam.objects.get(name="Test exam 1")
+
+        self.assertTrue(new_exam.allow_going_back)
+        self.assertTrue(new_exam.randomize_questions)
+        self.assertFalse(new_exam.draft)
+        self.assertFalse(new_exam.randomize_exercises)
+        self.assertEquals(new_exam.created_by, self.teacher)
+
         categories = new_exam.categories.all()
+        cat1 = categories.get(name="cat1")
+        cat2 = categories.get(name="cat2")
 
-        # all 3 categories have been created
-        self.assertSetEqual(
-            set([c.name for c in categories]), set(["cat1", "cat2", "cat3"])
-        )
+        # both categories have been created
+        self.assertSetEqual(set([c.name for c in categories]), set(["cat1", "cat2"]))
 
-        # all 5 questions have been created
+        # all 3 questions have been created
         questions = new_exam.questions.all()
-        self.assertEquals(questions.count(), 5)
+        self.assertEquals(questions.count(), 3)
 
-        # check correct properties of all 5 questions
+        # check correct properties of all 3 questions
         q1 = questions.get(text="open question in category 1")
         self.assertEquals(q1.category, categories.get(name="cat1"))
-        # todo check all the other properties
+        self.assertEquals(q1.question_type, "o")
+        self.assertFalse(q1.accepts_multiple_answers)
+
+        q2 = questions.get(text="multiple choice question 1 in category 1")
+        self.assertEquals(q2.category, categories.get(name="cat1"))
+        self.assertEquals(q2.question_type, "m")
+        self.assertFalse(q2.accepts_multiple_answers)
+        q2answers = q2.answers.all()
+        self.assertSetEqual(set([a.text for a in q2answers]), set(["wrong1", "right1"]))
+        self.assertFalse(q2answers.get(text="wrong1").is_right_answer)
+        self.assertTrue(q2answers.get(text="right1").is_right_answer)
+
+        q3 = questions.get(text="question that accepts multiple answers in category 2")
+        self.assertEquals(q3.category, categories.get(name="cat2"))
+        self.assertEquals(q3.question_type, "m")
+        self.assertTrue(q3.accepts_multiple_answers)
+        q3answers = q3.answers.all()
+        self.assertSetEqual(set([a.text for a in q3answers]), set(["wrong2", "right2"]))
+        self.assertTrue(q3answers.get(text="right2").is_right_answer)
+        self.assertFalse(q3answers.get(text="wrong2").is_right_answer)
+
+        new_allowed_teacher = User.objects.create(
+            username="allowed_teacher", email="allowed_teacher@unipi.it"
+        )
+        # delete first question, create category 3, move second question to new category, add an
+        # `allowed_teacher`, create a new question to add to category 1, and change the exam name
+        put_request_body = {
+            "name": "Test exam 2.0",  # changed name
+            "draft": False,
+            "begin_timestamp": "2021-07-12 09:00:00",
+            "end_timestamp": "2021-07-12 10:00:00",
+            "allow_going_back": True,
+            "randomize_questions": True,
+            "randomize_exercises": False,
+            "allowed_teachers": [new_allowed_teacher.pk],  # new
+            "questions": [
+                # deleted first question
+                {
+                    "id": q2.pk,  # you need to include the id when updating an item
+                    "answers": [
+                        {
+                            "text": "wrong1",
+                            "is_right_answer": False,
+                        },
+                        {
+                            "text": "right1",
+                            "is_right_answer": True,
+                        },
+                    ],
+                    "text": "multiple choice question 1 in category 1",
+                    "question_type": "m",
+                    "accepts_multiple_answers": False,
+                    "category_uuid": cat3_uuid,
+                },
+                {
+                    "id": q3.pk,
+                    "answers": [
+                        {
+                            "text": "right2",
+                            "is_right_answer": True,
+                        },
+                        {
+                            "text": "wrong2",
+                            "is_right_answer": False,
+                        },
+                    ],
+                    "text": "question that accepts multiple answers in category 2",
+                    "question_type": "m",
+                    "accepts_multiple_answers": True,
+                    "category": cat2.pk,  # reference the already existing category via pk
+                },
+                {  # new question - no id
+                    "answers": [],
+                    "text": "new open question in category 2",
+                    "question_type": "o",
+                    "accepts_multiple_answers": False,
+                    "category": cat2.pk,
+                },
+            ],
+            "exercises": [],
+            "categories": [
+                {
+                    "id": cat1.pk,
+                    "introduction_text": "",
+                    "amount": 1,
+                    "name": "cat1",
+                    "item_type": "q",
+                    "is_aggregated_question": False,
+                    "randomize": True,
+                },
+                {
+                    "id": cat2.pk,
+                    "introduction_text": "",
+                    "name": "cat2",
+                    "item_type": "q",
+                    "amount": 1,
+                    "is_aggregated_question": False,
+                    "randomize": True,
+                },
+                {  # new category
+                    "introduction_text": "cat3 introductory text",
+                    "name": "cat3-aggregated_question",
+                    "item_type": "q",
+                    "amount": 1,
+                    "is_aggregated_question": True,
+                    "randomize": False,
+                    "tmp_uuid": cat3_uuid,
+                },
+            ],
+        }
+
+        response = client.put(f"/exams/{new_exam.pk}/", put_request_body)
+        self.assertEquals(response.status_code, 200)
+        # todo check new properties like you did with the post request
+        # todo particularly, make sure the things you didn't change haven't changed
         pass
 
     def test_progress_and_stats(self):
         # shows that as exam participants answer question, their `completed_items_count` increases, and that when
         # an answer is selected by a user, its `selections` count increases
-        # todo add tests for the new method answer.is_selected_by(user)
         cat2 = Category.objects.create(
             exam=self.exam, name="cat2", amount=2, item_type="q", randomize=False
         )
@@ -1003,9 +1117,11 @@ class ExamTestCase(TestCase):
         self.assertEqual(self.q3a2.selections, 0)
         self.assertEqual(self.q3a3.selections, 0)
 
+        self.assertFalse(self.q3a1.is_selected_by(self.student3))  # not yet selected
         GivenAnswer.objects.create(
             user=self.student3, question=self.q3, answer=self.q3a1
         )
+        self.assertTrue(self.q3a1.is_selected_by(self.student3))
         # answering a question increases the count of completed items
         self.assertEqual(exam_progress.completed_items_count, 1)
         # it also increases the amount of selections of the chosen answer
@@ -1051,7 +1167,7 @@ class ExamTestCase(TestCase):
         client.force_authenticate(user=self.student2)
 
         # battery 1 - tests going forward and back
-
+        # todo test user ending exam and getting 204 and show that they can't give/withdraw answers anymore
         response = client.post(f"/exams/{self.exam.pk}/current_item/", {})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["question"]["id"], 1)
@@ -1242,13 +1358,16 @@ class ExamTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
 
         # battery 3 - exam gets closed, test that no action can be performed
-
-        self.exam.close_exam(closed_by=self.teacher)
+        client.force_authenticate(user=self.teacher)
+        response = client.patch(f"/exams/{self.exam.pk}/terminate/", {})
+        self.assertEquals(response.status_code, 200)
+        self.exam.refresh_from_db()
         self.assertTrue(self.exam.closed)
 
         exam_progress = ExamProgress.objects.get(exam=self.exam, user=self.student2)
         curr_cursor_val = exam_progress.current_item_cursor
 
+        client.force_authenticate(user=self.student2)
         response = client.post(f"/exams/{self.exam.pk}/current_item/", {})
         self.assertEqual(response.status_code, 410)
 
@@ -1331,6 +1450,10 @@ class IntegrityTestCase(TestCase):
         self.q3a1 = Answer.objects.create(question=self.q3, text="abc")
         self.q3a2 = Answer.objects.create(question=self.q3, text="abc")
         self.q3a3 = Answer.objects.create(question=self.q3, text="abc")
+
+    def test_category_integrity(self):
+        # todo test constraints that raise InvalidCategoryType
+        pass
 
     def test_given_answers_integrity(self):
         with self.assertRaises(InvalidAnswerException):

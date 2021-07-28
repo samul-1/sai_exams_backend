@@ -16,6 +16,8 @@ from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 
+from jsplatform.serializers import ExamPreviewSerializer
+
 from . import filters, throttles
 from .exceptions import InvalidAnswerException, NotEligibleForTurningIn
 from .models import (
@@ -85,6 +87,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = ExamSerializer
+    serializer_action_classes = {"list": ExamPreviewSerializer}
     queryset = (
         Exam.objects.all()
         .select_related("locked_by", "created_by", "closed_by")
@@ -100,6 +103,12 @@ class ExamViewSet(viewsets.ModelViewSet):
     # limit exam access for a user to those created by them or to which they've been granted access
     filter_backends = [filters.ExamCreatorAndAllowed, OrderingFilter]
     ordering = ["pk"]
+
+    def get_serializer_class(self):
+        try:
+            return self.serializer_action_classes[self.action]
+        except (KeyError, AttributeError):
+            return super().get_serializer_class()
 
     def get_queryset(self):
         """
@@ -138,7 +147,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         if exam.locked_by is not None and request.user != exam.locked_by:
             return Response(
                 status=status.HTTP_403_FORBIDDEN,
-                data={"message": "È in corso una modifica da un altro insegnante."},
+                data={"message": constants.MSG_EXAM_LOCKED},
             )
 
         return super(ExamViewSet, self).update(request)
@@ -225,7 +234,9 @@ class ExamViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            exam_progress = ExamProgress.objects.get(user=user, exam=exam)
+            exam_progress = ExamProgress.objects.get(
+                user=user, exam=exam, is_done=False
+            )
         except ExamProgress.DoesNotExist:
             return Response(status=status.HTTP_403_FORBIDDEN)
 
@@ -286,7 +297,9 @@ class ExamViewSet(viewsets.ModelViewSet):
         user = request.user
 
         try:
-            exam_progress = ExamProgress.objects.get(user=user, exam=exam)
+            exam_progress = ExamProgress.objects.get(
+                user=user, exam=exam, is_done=False
+            )
         except ExamProgress.DoesNotExist:
             return Response(status=status.HTTP_403_FORBIDDEN)
 
@@ -465,9 +478,8 @@ class ExamViewSet(viewsets.ModelViewSet):
                 report.zip_report_archive, as_attachment=True, filename=filename
             )
 
-    # todo rename to csv
     @action(detail=True, methods=["post"])
-    def report(self, request, **kwargs):
+    def csv_report(self, request, **kwargs):
         exam = self.get_object()
         report, _ = ExamReport.objects.get_or_create(exam=exam)
         filename = report.csv_report.name.split("/")[-1]
