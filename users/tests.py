@@ -38,6 +38,10 @@ class UsersTestCase(TestCase):
 
         view = TeacherList.as_view()
 
+        # unauthenticated users cannot access this view
+        response = view(request)
+        self.assertEqual(response.status_code, 403)
+
         # non-teacher users cannot access this view
         force_authenticate(request, user=self.student1)
         response = view(request)

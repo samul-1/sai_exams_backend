@@ -978,7 +978,7 @@ class GivenAnswer(models.Model):
         if self.answer is not None and self.answer not in self.question.answers.all():
             raise InvalidAnswerException
 
-        if (
+        if (  # maybe could achieve this with a partial unique constraint with condition on self.question
             self.pk is None  # trying to create a new object
             and not self.question.accepts_multiple_answers
             and GivenAnswer.objects.filter(

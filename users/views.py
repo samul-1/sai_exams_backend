@@ -1,5 +1,6 @@
 from jsplatform.permissions import TeachersOnly
 from rest_framework import generics
+from rest_framework.permissions import IsAuthenticated
 
 from .models import User
 from .serializers import UserSerializer
@@ -12,4 +13,4 @@ class TeacherList(generics.ListAPIView):
 
     queryset = User.objects.filter(is_teacher=True)
     serializer_class = UserSerializer
-    permission_classes = [TeachersOnly]
+    permission_classes = [IsAuthenticated, TeachersOnly]

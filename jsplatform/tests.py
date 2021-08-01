@@ -5,28 +5,18 @@ from django.db import transaction
 from django.db.utils import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
-from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
+from rest_framework.test import (APIClient, APIRequestFactory,
+                                 force_authenticate)
 from users.models import User
 
-from jsplatform.exceptions import (
-    ExamCompletedException,
-    InvalidAnswerException,
-    TooManyAnswers,
-)
-from jsplatform.models import (
-    Answer,
-    Category,
-    Exam,
-    ExamProgress,
-    ExamProgressQuestionsThroughModel,
-    Exercise,
-    GivenAnswer,
-    Question,
-    Submission,
-)
-from jsplatform.models import (
-    TestCase as TestCase_,
-)  # prevent name conflict with django TestCase class
+from jsplatform.exceptions import (ExamCompletedException,
+                                   InvalidAnswerException, InvalidCategoryType,
+                                   TooManyAnswers)
+from jsplatform.models import (Answer, Category, Exam, ExamProgress,
+                               ExamProgressQuestionsThroughModel, Exercise,
+                               GivenAnswer, Question, Submission)
+from jsplatform.models import \
+    TestCase as TestCase_  # prevent name conflict with django TestCase class
 from jsplatform.views import ExamViewSet, ExerciseViewSet, SubmissionViewSet
 
 
@@ -533,6 +523,7 @@ class ExamStateTestCase(TestCase):
         cat1 = Category.objects.create(
             exam=self.exam, name="cat1", amount=3, item_type="q", randomize=False
         )
+
         self.q1 = Question.objects.create(
             exam=self.exam,
             text="question1",
@@ -1167,7 +1158,6 @@ class ExamTestCase(TestCase):
         client.force_authenticate(user=self.student2)
 
         # battery 1 - tests going forward and back
-        # todo test user ending exam and getting 204 and show that they can't give/withdraw answers anymore
         response = client.post(f"/exams/{self.exam.pk}/current_item/", {})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["question"]["id"], 1)
@@ -1357,7 +1347,46 @@ class ExamTestCase(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-        # battery 3 - exam gets closed, test that no action can be performed
+        # battery 3 - student ends their exam and cannot perform any more actions
+        client.force_authenticate(user=self.student3)
+        response = client.post(f"/exams/{self.exam.pk}/current_item/", {})
+        self.assertEqual(response.status_code, 200)
+        # give an answer so we can try and withdraw it later
+        response = client.post(
+            f"/exams/{self.exam.pk}/give_answer/",
+            {
+                "answer": self.q1a1.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        response = client.post(f"/exams/{self.exam.pk}/end_exam/", {})
+        self.assertEqual(response.status_code, 204)
+
+        # from now on, no action should succeed by the user regarding this exam
+        response = client.post(f"/exams/{self.exam.pk}/current_item/", {})
+        self.assertEqual(response.status_code, 204)
+        response = client.post(f"/exams/{self.exam.pk}/previous_item/", {})
+        self.assertEqual(response.status_code, 204)
+        response = client.post(f"/exams/{self.exam.pk}/next_item/", {})
+        self.assertEqual(response.status_code, 204)
+
+        response = client.post(
+            f"/exams/{self.exam.pk}/give_answer/",
+            {
+                "answer": self.q1a2.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 403)
+        response = client.post(
+            f"/exams/{self.exam.pk}/withdraw_answer/",
+            {
+                "answer": self.q1a1.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 403)
+
+        # battery 4 - exam gets closed, test that no action can be performed
         client.force_authenticate(user=self.teacher)
         response = client.patch(f"/exams/{self.exam.pk}/terminate/", {})
         self.assertEquals(response.status_code, 200)
@@ -1452,8 +1481,46 @@ class IntegrityTestCase(TestCase):
         self.q3a3 = Answer.objects.create(question=self.q3, text="abc")
 
     def test_category_integrity(self):
-        # todo test constraints that raise InvalidCategoryType
-        pass
+        cat_q = Category.objects.create(
+            exam=self.exam, name="cat_q", amount=3, item_type="q", randomize=False
+        )
+
+        cat_e = Category.objects.create(
+            exam=self.exam, name="cat_e", amount=3, item_type="e", randomize=False
+        )
+
+        # trying to add a question to an exercise category
+        with self.assertRaises(InvalidCategoryType):
+            Question.objects.create(exam=self.exam, text="quest", category=cat_e)
+
+        # trying to add an exercise to a question category
+        with self.assertRaises(InvalidCategoryType):
+            Exercise.objects.create(exam=self.exam, text="ex", category=cat_q)
+
+        now = timezone.localtime(timezone.now())
+        tomorrow = now + timedelta(days=1)
+        another_exam = Exam.objects.create(
+            name="Test exam", begin_timestamp=now, end_timestamp=tomorrow, draft=False
+        )
+
+        another_exam_cat_q = Category.objects.create(
+            exam=another_exam, name="cat_q", amount=3, item_type="q", randomize=False
+        )
+
+        another_exam_cat_e = Category.objects.create(
+            exam=another_exam, name="cat_e", amount=3, item_type="e", randomize=False
+        )
+
+        # trying to add an item to a category that belongs to an exam other than
+        # that of the item itself
+        with self.assertRaises(InvalidCategoryType):
+            Question.objects.create(
+                exam=self.exam, text="quest", category=another_exam_cat_q
+            )
+        with self.assertRaises(InvalidCategoryType):
+            Exercise.objects.create(
+                exam=self.exam, text="ex", category=another_exam_cat_e
+            )
 
     def test_given_answers_integrity(self):
         with self.assertRaises(InvalidAnswerException):

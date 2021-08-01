@@ -162,17 +162,26 @@ class ExamLockConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def who_locked(self, exam_id):
-        exam = Exam.objects.get(pk=exam_id)
-        return exam.locked_by
+        try:
+            exam = Exam.objects.get(pk=exam_id)
+            return exam.locked_by
+        except Exam.DoesNotExist:
+            return None
 
     @database_sync_to_async
     def lock_exam(self, exam_id):
-        exam = Exam.objects.get(pk=exam_id)
-        exam.locked_by = self.scope["user"]
-        exam.save()
+        try:
+            exam = Exam.objects.get(pk=exam_id)
+            exam.locked_by = self.scope["user"]
+            exam.save()
+        except Exam.DoesNotExist:
+            pass
 
     @database_sync_to_async
     def unlock_exam(self, exam_id):
-        exam = Exam.objects.get(pk=exam_id)
-        exam.locked_by = None
-        exam.save()
+        try:
+            exam = Exam.objects.get(pk=exam_id)
+            exam.locked_by = None
+            exam.save()
+        except Exam.DoesNotExist:
+            pass
