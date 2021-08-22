@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 
-from jsplatform.serializers import ExamPreviewSerializer
+from jsplatform.serializers import ExamPreviewSerializer, QuestionAdapterSerializer
 
 from . import filters, throttles
 from .exceptions import InvalidAnswerException, NotEligibleForTurningIn
@@ -202,6 +202,13 @@ class ExamViewSet(viewsets.ModelViewSet):
         )
 
         return FileResponse(all_items_pdf, as_attachment=True, filename=exam.name)
+
+    @action(detail=True, methods=["get"])
+    def export(self, request, **kwargs):
+        exam = self.get_object()
+
+        serializer = QuestionAdapterSerializer(exam.questions.all(), many=True)
+        return Response(serializer.data)
 
     @action(detail=True, methods=["get"])
     def progress_info(self, request, **kwargs):

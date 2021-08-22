@@ -337,6 +337,30 @@ class TestCaseSerializer(serializers.ModelSerializer):
         return instance
 
 
+class ChoiceAdapterSerializer(serializers.ModelSerializer):
+    """
+    Used to export questions for the new training app, using the new naming for data models
+    """
+
+    correct = serializers.BooleanField(source="is_right_answer")
+
+    class Meta:
+        model = Answer
+        fields = ["text", "correct"]
+
+
+class QuestionAdapterSerializer(serializers.ModelSerializer):
+    """
+    Used to export questions for the new training app, using the new naming for data models
+    """
+
+    choices = ChoiceAdapterSerializer(source="answers", many=True)
+
+    class Meta:
+        model = Question
+        fields = ["text", "choices"]
+
+
 class QuestionSerializer(serializers.ModelSerializer):
     """
     A serializer for a multiple choice question, showing its text and answers
