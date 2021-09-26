@@ -62,6 +62,10 @@ CORS_ORIGIN_ALLOW_ALL = True
 
 CORS_ALLOW_CREDENTIALS = True
 
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = default_headers + ("Access-Control-Allow-Origin",)
+
 # --
 
 
