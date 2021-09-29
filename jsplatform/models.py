@@ -227,7 +227,8 @@ class Exam(models.Model):
         for question in self.questions.order_by("category__pk", "pk"):
             questions.append(question)
 
-        # todo process exercises
+        for exercise in self.exercises.order_by("category__pk", "pk"):
+            exercises.append(exercise)
 
         return (questions, exercises)
 
@@ -499,6 +500,19 @@ class Exercise(models.Model):
     @property
     def num_appearances(self):
         return ExamProgress.objects.filter(exercises__in=[self]).count()
+
+    def format_for_pdf(self):
+        return {
+            "text": preprocess_html_for_pdf(self.rendered_text),
+            "starting_code": self.starting_code,
+            "testcases": [
+                {
+                    "assertion": t.assertion,
+                    # "is_right_answer": a.is_right_answer,
+                }
+                for t in self.testcases.all()
+            ],
+        }
 
 
 class ExamProgress(models.Model):
