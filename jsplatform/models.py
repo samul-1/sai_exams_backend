@@ -214,8 +214,18 @@ class Exam(models.Model):
         progress = ExamProgress.objects.create(exam=self, user=user)
 
         # save the m2m fields as lists as the related object will be deleted
-        questions = [q for q in progress.questions.all()]
-        exercises = [e for e in progress.exercises.all()]
+        questions = [
+            q
+            for q in progress.questions.all()
+            .order_by("examprogressquestionsthroughmodel__ordering")
+            .filter(examprogressquestionsthroughmodel__exam_progress=progress)
+        ]
+        exercises = [
+            e
+            for e in progress.exercises.all()
+            .order_by("examprogressexercisesthroughmodel__ordering")
+            .filter(examprogressexercisesthroughmodel__exam_progress=progress)
+        ]
 
         progress.delete()
         return (questions, exercises)
