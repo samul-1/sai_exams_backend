@@ -121,7 +121,9 @@ iVBORw0KGgoAAAANSUhEUgAAAR4AAAEkCAYAAAD5KF4dAAAACXBIWXMAAAsTAAALEwEAmpwYAAAgAElE
           {% elif user %}
             <h3 class="dont-bookmark">Risposta dello studente</h3>
             <div class="answer-text-open">
-                {{ question.answer_text }}
+            {% autoescape on %}
+                {{ question.answer_text | safe}}
+            {% endautoescape %}
             </div>
           {% endif %}
           </div>

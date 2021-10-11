@@ -209,9 +209,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         # discard questions that use features unavailable in the new app
         # (aggregated questions and questions that accept multiple answers)
-        questions = exam.questions.filter(
-            accepts_multiple_answers=False, category__is_aggregated_question=False
-        )
+        questions = exam.questions.filter(accepts_multiple_answers=False)
         serializer = QuestionAdapterSerializer(questions, many=True)
         return Response(serializer.data)
 

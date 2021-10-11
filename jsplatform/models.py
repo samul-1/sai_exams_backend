@@ -19,20 +19,12 @@ from django.db.models import Count, Exists, F, JSONField, OuterRef, Q
 from django.utils import timezone
 from users.models import User
 
-from jsplatform.exceptions import (
-    ExamCompletedException,
-    NoGoingBackException,
-    TooManyAnswers,
-)
+from jsplatform.exceptions import (ExamCompletedException,
+                                   NoGoingBackException, TooManyAnswers)
 
-from .exceptions import (
-    ExamNotOverYet,
-    InvalidAnswerException,
-    InvalidCategoryType,
-    NotEligibleForTurningIn,
-    OutOfCategories,
-    SubmissionAlreadyTurnedIn,
-)
+from .exceptions import (ExamNotOverYet, InvalidAnswerException,
+                         InvalidCategoryType, NotEligibleForTurningIn,
+                         OutOfCategories, SubmissionAlreadyTurnedIn)
 from .pdf import preprocess_html_for_pdf, render_to_pdf
 from .tex import tex_to_svg
 from .utils import run_code_in_vm
@@ -655,7 +647,6 @@ class ExamProgress(models.Model):
                 through_row.save()
                 item_count += 1
 
-        # todo do the same for exercises
         self.is_initialized = True
         self.save()
 

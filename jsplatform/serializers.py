@@ -360,6 +360,22 @@ class QuestionAdapterSerializer(serializers.ModelSerializer):
         model = Question
         fields = ["text", "choices"]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["is_open_ended"] = serializers.SerializerMethodField()
+        self.fields["text"] = serializers.SerializerMethodField()
+
+    def get_is_open_ended(self, obj):
+        return obj.question_type == "o"
+
+    def get_text(self, obj):
+        ret = obj.text
+
+        if obj.category.is_aggregated_question:
+            ret = obj.category.introduction_text + "<br />" + ret
+
+        return ret
+
 
 class QuestionSerializer(serializers.ModelSerializer):
     """
