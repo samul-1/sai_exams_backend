@@ -40,6 +40,8 @@ def render_to_pdf(template_src, context_dict, render_tex=False):
     template = get_template(template_src)
     context = context_dict
 
+    print(context)
+
     html = template.render(context)
 
     if render_tex:

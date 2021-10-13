@@ -747,14 +747,7 @@ class ExamProgress(models.Model):
                     {
                         "text": preprocess_fn(a.rendered_text if for_pdf else a.text),
                         "is_right_answer": a.is_right_answer,
-                        "selected": a.is_selected_by(user=self.user)
-                        # a.pk
-                        # in list(
-                        #     map(
-                        #         lambda g: g.answer.pk if g.answer is not None else 0,
-                        #         given_answers,
-                        #     )
-                        # ),
+                        "selected": a.is_selected_by(user=self.user),
                     }
                     for a in question.answers.all()
                 ]
@@ -766,7 +759,40 @@ class ExamProgress(models.Model):
                 )
             ret["questions"].append(q)
 
-            # todo do the same for exercises
+        for exercise in exercises:
+            submissions = exercise.submissions.filter(user=self.user)
+
+            e = {
+                "id": exercise.pk,
+                "text": preprocess_fn(
+                    exercise.rendered_text if for_pdf else exercise.text
+                ),  # we don't want the TeX as svg in csv
+                "testcases": [t.assertion for t in exercise.testcases.all()],
+            }
+
+            try:
+                relevant_submission = submissions.get(has_been_turned_in=True)
+                turned_in = True
+            except Submission.DoesNotExist:
+                submissions = sorted(
+                    list(submissions),
+                    key=lambda s: s.get_passed_testcases(),
+                    reverse=True,
+                )
+                relevant_submission = (
+                    submissions[0] if len(submissions) > 0 else Submission(code="")
+                )
+                turned_in = False
+
+            e.update(
+                {
+                    "submission": relevant_submission.code,
+                    "turned_in": turned_in,
+                    "passed_testcases": relevant_submission.get_passed_testcases(),
+                    "failed_testcases": relevant_submission.get_failed_testcases(),
+                },
+            )
+            ret["exercises"].append(e)
         return ret
 
     def generate_pdf(self):

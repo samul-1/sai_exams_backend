@@ -141,14 +141,18 @@ iVBORw0KGgoAAAANSUhEUgAAAR4AAAEkCAYAAAD5KF4dAAAACXBIWXMAAAsTAAALEwEAmpwYAAAgAElE
           <div class="answer-list">
             <h3 class="dont-bookmark">Test case</h3>
             {% for testcase in exercise.testcases %}
-            <pre>{{ testcase.assertion }}</pre> 
-             <!-- <div class="answer-text"> -->
-              <!--<div
-                class="{% if question.accepts_multiple_answers %}div-checkbox{% else %}div-radio{% endif %} {% if answer.selected %}div-checked{% endif %}">.</div>-->
-                
-              <!--{% if answer.is_right_answer %}CORRETTA{%else%} SBAGLIATA {%endif%} - -->
-              <!-- </div> -->
+            <pre>{{ testcase }}</pre> 
             {% endfor %}
+
+            {% if user %}
+            <h3 class="dont-bookmark">Sottomissione dello studente</h3>
+            {% if not exercise.turned_in %}
+              <p><strong>Lo studente non ha consegnato</strong> alcuna sottomissione, ma questa risulta la sua migliore sottomissione in termini di test case superati.</p>
+            {% endif %}
+            <div class="answer-text-open">
+              {{ exercise.submission }}
+            </div>
+            {% endif %}
           </div>
       </div>
       {% endfor %}
