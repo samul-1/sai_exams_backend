@@ -28,6 +28,14 @@ def preprocess_html_for_pdf(html):
     return ret
 
 
+def escape_unsafe_text(text):
+    """
+    Escapes unsafe characters in user-submitted text in order to safely use
+    them in html templates
+    """
+    return text.replace("<", "&lt;").replace(">", "&gt;")
+
+
 def render_to_pdf(template_src, context_dict, render_tex=False):
     template = get_template(template_src)
     context = context_dict

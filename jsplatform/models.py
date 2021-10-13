@@ -19,12 +19,20 @@ from django.db.models import Count, Exists, F, JSONField, OuterRef, Q
 from django.utils import timezone
 from users.models import User
 
-from jsplatform.exceptions import (ExamCompletedException,
-                                   NoGoingBackException, TooManyAnswers)
+from jsplatform.exceptions import (
+    ExamCompletedException,
+    NoGoingBackException,
+    TooManyAnswers,
+)
 
-from .exceptions import (ExamNotOverYet, InvalidAnswerException,
-                         InvalidCategoryType, NotEligibleForTurningIn,
-                         OutOfCategories, SubmissionAlreadyTurnedIn)
+from .exceptions import (
+    ExamNotOverYet,
+    InvalidAnswerException,
+    InvalidCategoryType,
+    NotEligibleForTurningIn,
+    OutOfCategories,
+    SubmissionAlreadyTurnedIn,
+)
 from .pdf import preprocess_html_for_pdf, render_to_pdf
 from .tex import tex_to_svg
 from .utils import run_code_in_vm
@@ -752,7 +760,9 @@ class ExamProgress(models.Model):
                 ]
             else:  # open question
                 q["answer_text"] = (
-                    given_answers[0].text if given_answers.exists() else ""
+                    escape_unsafe_text(given_answers[0].text)
+                    if given_answers.exists()
+                    else ""
                 )
             ret["questions"].append(q)
 
@@ -1032,6 +1042,8 @@ To automatically remove files in model's FileField upon deletion
 from django.db import models
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
+
+from jsplatform.pdf import escape_unsafe_text
 
 """ Whenever ANY model is deleted, if it has a file field on it, delete the associated file too"""
 
