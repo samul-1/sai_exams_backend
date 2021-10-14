@@ -16,7 +16,11 @@ from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 
-from jsplatform.serializers import ExamPreviewSerializer, QuestionAdapterSerializer
+from jsplatform.serializers import (
+    ExamPreviewSerializer,
+    ExerciseAdapterSerializer,
+    QuestionAdapterSerializer,
+)
 
 from . import filters, throttles
 from .exceptions import InvalidAnswerException, NotEligibleForTurningIn
@@ -204,13 +208,21 @@ class ExamViewSet(viewsets.ModelViewSet):
         return FileResponse(all_items_pdf, as_attachment=True, filename=exam.name)
 
     @action(detail=True, methods=["get"])
-    def export(self, request, **kwargs):
+    def export_questions(self, request, **kwargs):
         exam = self.get_object()
 
         # discard questions that use features unavailable in the new app
-        # (aggregated questions and questions that accept multiple answers)
+        # (i.e. questions that accept multiple answers)
         questions = exam.questions.filter(accepts_multiple_answers=False)
         serializer = QuestionAdapterSerializer(questions, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["get"])
+    def export_exercises(self, request, **kwargs):
+        exam = self.get_object()
+
+        exercises = exam.exercises.all()
+        serializer = ExerciseAdapterSerializer(exercises, many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=["get"])

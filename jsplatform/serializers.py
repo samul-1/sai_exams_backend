@@ -352,6 +352,13 @@ class ChoiceAdapterSerializer(serializers.ModelSerializer):
         model = Answer
         fields = ["text", "correct"]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["text"] = serializers.SerializerMethodField()
+
+    def get_text(self, obj):
+        return obj.text.replace("&amp;", "&")
+
 
 class QuestionAdapterSerializer(serializers.ModelSerializer):
     """
@@ -373,12 +380,44 @@ class QuestionAdapterSerializer(serializers.ModelSerializer):
         return obj.question_type == "o"
 
     def get_text(self, obj):
-        ret = obj.text
+        ret = obj.text.replace("&amp;", "&")
 
         if obj.category.is_aggregated_question:
-            ret = obj.category.introduction_text + "<br />" + ret
+            ret = obj.category.introduction_text.replace("&amp;", "&") + "<br />" + ret
 
         return ret
+
+
+class TestCaseAdapterSerializer(serializers.ModelSerializer):
+    """
+    Used to export test cases for the new training app, using the new naming for data models
+    """
+
+    code = serializers.CharField(source="assertion")
+
+    class Meta:
+        model = TestCase
+        fields = ["code"]
+
+
+class ExerciseAdapterSerializer(serializers.ModelSerializer):
+    """
+    Used to export exercises for the new training app, using the new naming for data models
+    """
+
+    testcases = TestCaseAdapterSerializer(source="testcases", many=True)
+    initial_code = serializers.CharField(source="starting_code")
+
+    class Meta:
+        model = Exercise
+        fields = ["text", "initial_code", "testcases"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["text"] = serializers.SerializerMethodField()
+
+    def get_text(self, obj):
+        return obj.text.replace("&amp;", "&")
 
 
 class QuestionSerializer(serializers.ModelSerializer):
