@@ -146,6 +146,7 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_WHITELISTED_DOMAINS = [
     "studenti.unipi.it",
     "phd.unipi.it",
     "unipi.it",
+    "gmail.com",
 ]
 
 
