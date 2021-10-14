@@ -280,7 +280,7 @@ class Category(models.Model):
         ordering = ["pk"]
 
     def __str__(self):
-        return self.name
+        return self.exam.name + " - " + self.name
 
     def save(self, render_tex=True, *args, **kwargs):
         text_changed = self.pk is None or (

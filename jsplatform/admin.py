@@ -77,12 +77,18 @@ class SubmissionAdmin(admin.ModelAdmin):
     pass
 
 
+class AnswerInline(admin.TabularInline):
+    model = Answer
+    exclude = ["rendered_text"]
+
+
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
     readonly_fields = (
         "created",
         "updated",
     )
+    inlines = [AnswerInline]
 
 
 @admin.register(Answer)
