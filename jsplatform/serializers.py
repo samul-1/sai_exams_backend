@@ -92,6 +92,7 @@ class ExamSerializer(serializers.ModelSerializer):
             self.fields["ordering"] = serializers.SerializerMethodField()
             self.fields["is_first_item"] = serializers.SerializerMethodField()
             self.fields["is_last_item"] = serializers.SerializerMethodField()
+            self.fields["total_items_count"] = serializers.SerializerMethodField()
 
     def create(self, validated_data):
         questions = validated_data.pop("questions")
@@ -290,6 +291,9 @@ class ExamSerializer(serializers.ModelSerializer):
     def get_is_last_item(self, obj):
         user = self.context["request"].user
         return not obj.participations.get(user=user).is_there_next
+
+    def get_total_items_count(self, obj):
+        return obj.get_number_of_items_per_exam()
 
 
 class CategorySerializer(serializers.ModelSerializer):
