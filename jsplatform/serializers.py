@@ -626,6 +626,10 @@ class SubmissionSerializer(serializers.ModelSerializer):
         else:
             # only show public test case details to non-staff users
             self.fields["public_details"] = serializers.JSONField(read_only=True)
+            self.fields["total_testcases"] = serializers.SerializerMethodField()
+
+    def get_total_testcases(self, obj):
+        return obj.exercise.testcases.count()
 
     def create(self, validated_data):
         submission = Submission.objects.create(**validated_data)
