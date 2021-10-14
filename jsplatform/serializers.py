@@ -46,9 +46,17 @@ class ExamPreviewSerializer(serializers.ModelSerializer):
         self.fields["locked_by"] = serializers.ReadOnlyField(
             source="locked_by.full_name"
         )
+        self.fields["has_questions"] = serializers.SerializerMethodField()
+        self.fields["has_exercises"] = serializers.SerializerMethodField()
 
         # make the serializer read-only
         setattr(self.Meta, "read_only_fields", [*self.fields])
+
+    def get_has_questions(self, obj):
+        return obj.questions.exists()
+
+    def get_has_exercises(self, obj):
+        return obj.exercises.exists()
 
 
 class ExamSerializer(serializers.ModelSerializer):
@@ -405,7 +413,7 @@ class ExerciseAdapterSerializer(serializers.ModelSerializer):
     Used to export exercises for the new training app, using the new naming for data models
     """
 
-    testcases = TestCaseAdapterSerializer(source="testcases", many=True)
+    testcases = TestCaseAdapterSerializer(many=True)
     initial_code = serializers.CharField(source="starting_code")
 
     class Meta:
