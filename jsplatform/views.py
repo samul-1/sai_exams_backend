@@ -132,6 +132,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         """
         context = {
             "request": request,
+            "force_student": True,  # get data as student even if the requesting user is a teacher
         }
 
         # determine if the item retrieved is a programming exercise or a question
@@ -244,7 +245,10 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def give_answer(self, request, **kwargs):
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
@@ -306,7 +310,10 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def withdraw_answer(self, request, **kwargs):
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
@@ -352,7 +359,10 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def current_item(self, request, **kwargs):
         # get current exam
@@ -384,7 +394,10 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def next_item(self, request, **kwargs):
         # get current exam
@@ -412,7 +425,10 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def previous_item(self, request, **kwargs):
         # get current exam
@@ -442,7 +458,10 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def end_exam(self, request, **kwargs):
         """
@@ -571,23 +590,6 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     serializer_class = SubmissionSerializer
     filter_backends = [filters.TeacherOrOwnedOnly]
     queryset = Submission.objects.all()
-
-    #! investigate, this is causing 403
-    # def dispatch(self, request, *args, **kwargs):
-    #     # this method prevents users from accessing `exercises/id/submissions` for exercises
-    #     # they don't have permission to see
-    #     parent_view = ExerciseViewSet.as_view({"get": "retrieve"})
-    #     original_method = request.method
-    #     # get the corresponding Exercise
-    #     request.method = "GET"
-    #     parent_kwargs = {"pk": kwargs["exercise_pk"]}
-
-    #     parent_response = parent_view(request, *args, **parent_kwargs)
-    #     if parent_response.exception:
-    #         # user tried accessing an exercise they didn't have permission to view
-    #         return parent_response
-    #     request.method = original_method
-    #     return super().dispatch(request, *args, **kwargs)
 
     # ! uncomment
     # def get_throttles(self):

@@ -73,7 +73,10 @@ class ExamSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super(ExamSerializer, self).__init__(*args, **kwargs)
-        if self.context["request"].user.is_teacher:
+        if (
+            self.context["request"].user.is_teacher
+            and not self.context["force_student"]
+        ):
             # if requesting user is a teacher, show all exercises and questions for this exam
             self.fields["exercises"] = ExerciseSerializer(many=True, **kwargs)
             self.fields["questions"] = QuestionSerializer(many=True, **kwargs)
@@ -263,8 +266,8 @@ class ExamSerializer(serializers.ModelSerializer):
     def get_exercise(self, obj):
         try:
             return ExerciseSerializer(
-                instance=self.context["exercise"],
-                context={"request": self.context["request"]},
+                instance=self.context.pop("exercise"),
+                context=self.context,
             ).data
         except KeyError:
             return None
@@ -272,8 +275,8 @@ class ExamSerializer(serializers.ModelSerializer):
     def get_question(self, obj):
         try:
             return QuestionSerializer(
-                instance=self.context["question"],
-                context={"request": self.context["request"]},
+                instance=self.context.pop("question"),
+                context=self.context,
             ).data
         except KeyError:
             return None
@@ -281,8 +284,8 @@ class ExamSerializer(serializers.ModelSerializer):
     def get_submissions(self, obj):
         try:
             return SubmissionSerializer(
-                instance=self.context["submissions"],
-                context={"request": self.context["request"]},
+                instance=self.context.pop("submissions"),
+                context=self.context,
                 many=True,
             ).data
         except KeyError:
@@ -464,7 +467,7 @@ class QuestionSerializer(serializers.ModelSerializer):
             write_only=True, required=False
         )
 
-        if not self.context["request"].user.is_teacher:
+        if not self.context["request"].user.is_teacher or self.context["force_student"]:
             # show text with TeX rendered as svg instead of the source
             # text to non-teacher users
             self.fields["text"] = serializers.CharField(source="rendered_text")
@@ -540,7 +543,10 @@ class AnswerSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super(AnswerSerializer, self).__init__(*args, **kwargs)
         self.fields["id"] = serializers.IntegerField(required=False)
-        if self.context["request"].user.is_teacher:
+        if (
+            self.context["request"].user.is_teacher
+            and not self.context["force_student"]
+        ):
             # only show whether this is the right answer and how many times it
             # was selected to teachers
             self.fields["is_right_answer"] = serializers.BooleanField()
@@ -592,6 +598,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
             self.fields["public_testcases"] = TestCaseSerializer(
                 many=True, read_only=True
             )
+        if not self.context["request"].user.is_teacher or self.context["force_student"]:
             self.fields["text"] = serializers.CharField(source="rendered_text")
 
     def create(self, validated_data):
