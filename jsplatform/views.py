@@ -368,7 +368,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         # get current exam
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
 
-        if exam.closed:
+        if exam.closed and not request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
@@ -379,6 +379,11 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam_progress, _ = ExamProgress.objects.get_or_create(
             user=request.user, exam=exam
         )
+        if self.request.user.is_teacher and self.request.data.get("restart", False):
+            # user is a teacher and is starting a new simulation; rebuild exam progress object
+            exam_progress.delete()
+            exam_progress = ExamProgress.objects.create(user=request.user, exam=exam)
+
         if exam_progress.is_done:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
