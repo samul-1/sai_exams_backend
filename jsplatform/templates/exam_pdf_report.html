@@ -24,6 +24,10 @@
     font-weight: 500;
   }
 
+  .testcase-outcome {
+    display: flex;
+  }
+
   .atomic-block {
     page-break-inside: avoid;
     page-break-after: always;
@@ -42,11 +46,15 @@
     white-space: pre;
   }
 
-  .introduction-text {
+  .introduction-text, .testcase-card {
     background-color: #f2f2f2;
     border-radius: 0.8rem;
     padding: .6rem;
     margin-bottom: 2rem;
+  }
+
+  .testcase-card {
+    margin-bottom: 1rem;
   }
 
   .right-answer {
@@ -69,6 +77,9 @@
   }
 
   .dont-bookmark { bookmark-level: none }
+
+  .error { color: #7F1D1D; }
+  .success { color: #047857; }
 
   </style>
   <body>
@@ -134,9 +145,9 @@ iVBORw0KGgoAAAANSUhEUgAAAR4AAAEkCAYAAAD5KF4dAAAACXBIWXMAAAsTAAALEwEAmpwYAAAgAElE
         <div class="atomic-block">
           <h3>Esercizio JS {{ forloop.counter }}</h3>
           <div class="question-text">{{ exercise.text | safe }}</div>
-          {% if exercise.starting_code != "" %}
+          {% if exercise.starting_code %}
             <h3 class="dont-bookmark">Bozza codice</h3>
-            <div class=""><pre>{{ exercise.starting_code | safe }}</pre></div>
+            <pre>{{ exercise.starting_code }}</pre>
           {% endif %}
           <div class="answer-list">
             <h3 class="dont-bookmark">Test case</h3>
@@ -145,13 +156,36 @@ iVBORw0KGgoAAAANSUhEUgAAAR4AAAEkCAYAAAD5KF4dAAAACXBIWXMAAAsTAAALEwEAmpwYAAAgAElE
             {% endfor %}
 
             {% if user %}
-            <h3 class="dont-bookmark">Sottomissione dello studente</h3>
-            {% if not exercise.turned_in %}
-              <p><strong>Lo studente non ha consegnato</strong> alcuna sottomissione, ma questa risulta la sua migliore sottomissione in termini di test case superati.</p>
-            {% endif %}
-            <div class="answer-text-open">
-              {{ exercise.submission }}
-            </div>
+              <h3 class="dont-bookmark">Sottomissione dello studente</h3>
+              {% if not exercise.turned_in %}
+                <p><strong>Lo studente non ha consegnato</strong> alcuna sottomissione, ma questa risulta la sua migliore sottomissione in termini di test case superati.</p>
+              {% endif %}
+              <div class="answer-text-open">{{ exercise.submission }}</div>
+              <h3 class="dont-bookmark">Risultato esecuzione ({{ exercise.passed_testcases }} test case superati, {{ exercise.failed_testcases }} falliti)</h3>
+              {% if exercise.submission_details.error %}
+                <p class="error">Si è verificato un errore durante l'esecuzione del codice:</p>
+                <pre>{{ exercise.submission_details.error }}</pre>
+              {% else %}
+                {% for testcase in exercise.submission_details.tests %}
+                  <div class="testcase-card">
+                    <div class="testcase-outcome">
+                      <pre>{{ testcase.assertion }}</pre>
+                      <p 
+                      style="margin-left: 1rem;" 
+                      class="{% if testcase.passed %}success{%else%}error{%endif%}"
+                      >
+                        <strong>{% if testcase.passed %}Superato{%else%}Non superato{%endif%}</strong>
+                      </p>
+                    </div>
+                    {% if not testcase.passed %}
+                        <div>
+                          <p>Errore:</p>
+                          <pre>{{ testcase.error }}</pre>
+                        </div>
+                    {%endif%}
+                  </div>
+                {% endfor %}
+              {% endif %}
             {% endif %}
           </div>
       </div>
