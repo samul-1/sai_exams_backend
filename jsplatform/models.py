@@ -780,7 +780,9 @@ class ExamProgress(models.Model):
                     reverse=True,
                 )
                 relevant_submission = (
-                    submissions[0] if len(submissions) > 0 else Submission(code="")
+                    submissions[0]
+                    if len(submissions) > 0
+                    else Submission(code="", exercise=exercise)
                 )
                 turned_in = False
 
