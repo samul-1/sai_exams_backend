@@ -886,7 +886,7 @@ class Submission(models.Model):
         return self.code
 
     def get_passed_testcases(self):
-        if self.details is None:
+        if self.details is None or "error" in self.details:
             return 0
         return len([t for t in self.details["tests"] if t["passed"]])
 
