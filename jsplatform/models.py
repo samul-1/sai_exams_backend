@@ -788,7 +788,7 @@ class ExamProgress(models.Model):
 
             e.update(
                 {
-                    "submission": relevant_submission.code,
+                    "submission": escape_unsafe_text(relevant_submission.code),
                     "turned_in": turned_in,
                     "passed_testcases": relevant_submission.get_passed_testcases(),
                     "failed_testcases": relevant_submission.get_failed_testcases(),
