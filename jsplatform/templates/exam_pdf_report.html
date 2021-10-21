@@ -43,7 +43,7 @@
     border: 1px solid gray;
     padding: 2rem;
     border-radius: 0.8rem;
-    white-space: pre;
+    white-space: pre-wrap;
   }
 
   .introduction-text, .testcase-card {
@@ -180,7 +180,7 @@ iVBORw0KGgoAAAANSUhEUgAAAR4AAAEkCAYAAAD5KF4dAAAACXBIWXMAAAsTAAALEwEAmpwYAAAgAElE
                     {% if not testcase.passed %}
                         <div>
                           <p>Errore:</p>
-                          <pre>{{ testcase.error }}</pre>
+                          <pre style="white-space: pre-wrap;">{{ testcase.error }}</pre>
                         </div>
                     {%endif%}
                   </div>
