@@ -38,6 +38,7 @@ celery = "*"
 django-celery-results = "*"
 redis = "*"
 coverage = "*"
+sentry-sdk = "*"
 
 [dev-packages]
 
