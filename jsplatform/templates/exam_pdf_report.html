@@ -169,7 +169,7 @@ iVBORw0KGgoAAAANSUhEUgAAAR4AAAEkCAYAAAD5KF4dAAAACXBIWXMAAAsTAAALEwEAmpwYAAAgAElE
                 {% for testcase in exercise.submission_details.tests %}
                   <div class="testcase-card">
                     <div class="testcase-outcome">
-                      <pre>{{ testcase.assertion }}</pre>
+                      <pre style="white-space: pre-wrap;">{{ testcase.assertion }}</pre>
                       <p 
                       style="margin-left: 1rem;" 
                       class="{% if testcase.passed %}success{%else%}error{%endif%}"
