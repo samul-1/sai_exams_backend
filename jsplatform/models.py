@@ -579,14 +579,22 @@ class ExamProgress(models.Model):
     def completed_items_count(self):
         # returns the number of questions assigned to `self` referenced by at least
         # one GivenAnswer from this user (there could be more if the question
-        # accepts multiple answers)
+        # accepts multiple answers) plus the number of exercises referenced by one
+        # turned in submission from this user
         exists_given_answer = GivenAnswer.objects.filter(
             user=self.user, question=OuterRef("pk")
+        )
+        exists_turned_in_submission = Submission.objects.filter(
+            user=self.user, has_been_turned_in=True, exercise=OuterRef("pk")
         )
         return (
             self.questions.all()
             .annotate(given_answer_exists=Exists(exists_given_answer))
             .filter(given_answer_exists=True)
+            .count()
+            + self.exercises.all()
+            .annotate(turned_in_submission_exists=Exists(exists_turned_in_submission))
+            .filter(turned_in_submission_exists=True)
             .count()
         )
 
