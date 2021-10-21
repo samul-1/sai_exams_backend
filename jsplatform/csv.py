@@ -82,13 +82,6 @@ def build_user_row(participation):
 
     for exercise in progress["exercises"]:
         row.append(exercise["text"])
-        # try:
-        #     # todo in get_progress_as_dict, to be consistent with questions you'll probably have submission as a key, hence no query needed
-        #     submission = Submission.objects.get(
-        #         exercise__pk=exercise["id"], user=user, has_been_turned_in=True
-        #     )
-        # except Submission.DoesNotExist:
-        #     submission = Submission()
         submission_cell_text = exercise["submission"]
         if not exercise["turned_in"]:
             submission_cell_text = (
