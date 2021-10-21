@@ -19,12 +19,20 @@ from django.db.models import Count, Exists, F, JSONField, OuterRef, Q
 from django.utils import timezone
 from users.models import User
 
-from jsplatform.exceptions import (ExamCompletedException,
-                                   NoGoingBackException, TooManyAnswers)
+from jsplatform.exceptions import (
+    ExamCompletedException,
+    NoGoingBackException,
+    TooManyAnswers,
+)
 
-from .exceptions import (ExamNotOverYet, InvalidAnswerException,
-                         InvalidCategoryType, NotEligibleForTurningIn,
-                         OutOfCategories, SubmissionAlreadyTurnedIn)
+from .exceptions import (
+    ExamNotOverYet,
+    InvalidAnswerException,
+    InvalidCategoryType,
+    NotEligibleForTurningIn,
+    OutOfCategories,
+    SubmissionAlreadyTurnedIn,
+)
 from .pdf import preprocess_html_for_pdf, render_to_pdf
 from .tex import tex_to_svg
 from .utils import run_code_in_vm
@@ -764,7 +772,7 @@ class ExamProgress(models.Model):
                 else None,
                 "testcases": [t.assertion for t in exercise.testcases.all()],
             }
-            
+
             try:
                 relevant_submission = submissions.get(has_been_turned_in=True)
                 turned_in = True
@@ -968,6 +976,10 @@ class Submission(models.Model):
             ).exists()
         ):
             raise NotEligibleForTurningIn
+
+        if self.user.is_teacher:
+            # fake turning in the submission for teachers using student mode
+            return
 
         self.has_been_turned_in = True
         self.save()
