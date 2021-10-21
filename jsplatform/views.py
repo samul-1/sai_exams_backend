@@ -408,7 +408,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         # get current exam
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
 
-        if exam.closed:
+        if exam.closed and not request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
@@ -439,7 +439,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         # get current exam
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
 
-        if exam.closed:
+        if exam.closed and not request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
