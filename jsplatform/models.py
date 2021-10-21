@@ -889,7 +889,7 @@ class Submission(models.Model):
         ordering = ["-timestamp"]
 
     def __str__(self):
-        return self.code
+        return self.user.full_name + " - " + self.code
 
     def get_passed_testcases(self):
         if self.details is None or "error" in self.details:
