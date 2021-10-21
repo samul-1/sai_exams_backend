@@ -677,12 +677,18 @@ class SubmissionSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super(SubmissionSerializer, self).__init__(*args, **kwargs)
 
-        if self.context["request"].user.is_teacher:
-            self.fields["details"] = serializers.JSONField(read_only=True)
-        else:
-            # only show public test case details to non-staff users
-            self.fields["public_details"] = serializers.JSONField(read_only=True)
+        # if self.context["request"].user.is_teacher:
+        #     self.fields["details"] = serializers.JSONField(read_only=True)
+        # else:
+        #     # only show public test case details to non-staff users
+        #     self.fields["public_details"] = serializers.JSONField(read_only=True)
+        source_kwarg_dict = {}
+        if not self.context["request"].user.is_teacher:
+            source_kwarg_dict["source"] = "public_details"
 
+        self.fields["details"] = serializers.JSONField(
+            read_only=True, **source_kwarg_dict
+        )
         self.fields["total_testcases"] = serializers.SerializerMethodField()
 
     def get_total_testcases(self, obj):

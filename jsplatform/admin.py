@@ -56,12 +56,17 @@ class ExamProgressAdmin(admin.ModelAdmin):
     # list_editable = ("pdf_report",)
 
 
+class TestCaseInline(admin.TabularInline):
+    model = TestCase
+
+
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
     readonly_fields = (
         "created",
         "updated",
     )
+    inlines = [TestCaseInline]
 
 
 @admin.register(TestCase)
