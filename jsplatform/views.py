@@ -364,6 +364,46 @@ class ExamViewSet(viewsets.ModelViewSet):
             # ~TeachersOnly
         ],
     )
+    def draft_code(self, request, **kwargs):
+        exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
+        user = request.user
+        if exam.closed:
+            return Response(
+                status=status.HTTP_410_GONE,
+                data={"message": constants.MSG_EXAM_OVER},
+            )
+
+        try:
+            exam_progress = ExamProgress.objects.get(
+                user=user, exam=exam, is_done=False
+            )
+        except ExamProgress.DoesNotExist:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        current_exercise = exam_progress.current_item
+
+        if not isinstance(current_exercise, Exercise):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            through_row = exam_progress.examprogressexercisesthroughmodel_set.get(
+                exercise_id=current_exercise.pk
+            )
+            through_row.draft_code = request.data["code"]
+            through_row.save()
+        except KeyError:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
+    )
     def current_item(self, request, **kwargs):
         # get current exam
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))

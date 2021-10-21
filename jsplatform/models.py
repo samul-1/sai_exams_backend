@@ -840,6 +840,9 @@ class ExamProgressExercisesThroughModel(models.Model):
     ordering = models.PositiveIntegerField()
     exam_progress = models.ForeignKey(ExamProgress, on_delete=models.CASCADE)
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE)
+    draft_code = models.TextField(
+        blank=True
+    )  # contains what's currently in the user code editor
 
     class Meta:
         ordering = ["ordering"]
