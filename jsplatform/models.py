@@ -694,6 +694,20 @@ class ExamProgress(models.Model):
             self.current_item_cursor += 1
             self.save()
 
+            # update seen_at time for new current item
+            try:
+                new_current_through_row = ExamProgressQuestionsThroughModel.objects.get(
+                    exam_progress=self, ordering=self.current_item_cursor
+                )
+            except ExamProgressQuestionsThroughModel.DoesNotExist:
+                new_current_through_row = ExamProgressExercisesThroughModel.objects.get(
+                    exam_progress=self, ordering=self.current_item_cursor
+                )
+            now = timezone.localtime(timezone.now())
+            if new_current_through_row.seen_at is None:
+                new_current_through_row.seen_at = now
+                new_current_through_row.save()
+
         return self.current_item
 
     def get_progress_as_dict(self, for_csv=False, for_pdf=False):
@@ -799,7 +813,9 @@ class ExamProgress(models.Model):
 
             e.update(
                 {
-                    "submission": escape_unsafe_text(relevant_submission.code),
+                    "submission": escape_unsafe_text(relevant_submission.code)
+                    if for_pdf
+                    else relevant_submission.code,
                     "turned_in": turned_in,
                     "passed_testcases": relevant_submission.get_passed_testcases(),
                     "failed_testcases": relevant_submission.get_failed_testcases(),
@@ -831,6 +847,7 @@ class ExamProgressQuestionsThroughModel(models.Model):
     ordering = models.PositiveIntegerField()
     exam_progress = models.ForeignKey(ExamProgress, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    seen_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["ordering"]
@@ -840,6 +857,7 @@ class ExamProgressExercisesThroughModel(models.Model):
     ordering = models.PositiveIntegerField()
     exam_progress = models.ForeignKey(ExamProgress, on_delete=models.CASCADE)
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE)
+    seen_at = models.DateTimeField(null=True, blank=True)
     draft_code = models.TextField(
         blank=True
     )  # contains what's currently in the user code editor

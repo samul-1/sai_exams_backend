@@ -30,7 +30,6 @@ reportlab = "*"
 xhtml2pdf = "*"
 html5lib = "*"
 pyPdf = "*"
-weasyprint = "*"
 django-extensions = "*"
 cairosvg = "*"
 django-silk = "*"
@@ -39,6 +38,7 @@ django-celery-results = "*"
 redis = "*"
 coverage = "*"
 sentry-sdk = "*"
+weasyprint = "==52.5"
 
 [dev-packages]
 
