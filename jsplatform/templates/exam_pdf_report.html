@@ -147,12 +147,12 @@ iVBORw0KGgoAAAANSUhEUgAAAR4AAAEkCAYAAAD5KF4dAAAACXBIWXMAAAsTAAALEwEAmpwYAAAgAElE
           <div class="question-text">{{ exercise.text | safe }}</div>
           {% if exercise.starting_code %}
             <h3 class="dont-bookmark">Bozza codice</h3>
-            <pre>{{ exercise.starting_code }}</pre>
+            <pre style="white-space: pre-wrap;">{{ exercise.starting_code }}</pre>
           {% endif %}
           <div class="answer-list">
             <h3 class="dont-bookmark">Test case</h3>
             {% for testcase in exercise.testcases %}
-            <pre>{{ testcase }}</pre> 
+            <pre style="white-space: pre-wrap;">{{ testcase }}</pre> 
             {% endfor %}
 
             {% if user %}
