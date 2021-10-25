@@ -161,6 +161,33 @@ class ExamViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
 
+    @action(detail=False, methods=["post"])
+    def test_submission(self, request, **kwargs):
+        """
+        Gets passed a one-off array of test cases and a code string, creates a submission
+        on the fly showing the outcome of the execution of the code on those test cases
+        and returns the result as a submission
+        """
+        from rest_framework import serializers
+
+        from .utils import run_code_in_vm
+
+        try:
+            testcase_serializer = TestCaseSerializer(
+                data=request.data["testcases"], many=True, context={"request": request}
+            )
+            testcase_serializer.is_valid(raise_exception=True)
+            outcome = run_code_in_vm(
+                request.data["code"], testcase_serializer.validated_data
+            )
+        except (KeyError, serializers.ValidationError):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = SubmissionSerializer(
+            Submission(details=outcome), context={"request": request}
+        )
+        return Response(serializer.data)
+
     @action(detail=True, methods=["post"])
     def mock(self, request, **kwargs):
         """
@@ -253,7 +280,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     def give_answer(self, request, **kwargs):
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
         user = request.user
-        if exam.closed and not request.user.is_teacher:
+        if exam.closed:  # and not request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
@@ -514,7 +541,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         """
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
 
-        if exam.closed:
+        if exam.closed and not self.request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
@@ -670,16 +697,16 @@ class SubmissionViewSet(viewsets.ModelViewSet):
 
         serializer.save(exercise=exercise, user=self.request.user)
 
-    @action(detail=True, methods=["put"])
-    def turn_in(self, request, pk=None, **kwargs):
-        """
-        Calls turn_in() on specified submission
-        """
-        submission = get_object_or_404(Submission, pk=pk)
+    # @action(detail=True, methods=["put"])
+    # def turn_in(self, request, pk=None, **kwargs):
+    #     """
+    #     Calls turn_in() on specified submission
+    #     """
+    #     submission = get_object_or_404(Submission, pk=pk)
 
-        try:
-            submission.turn_in()
-        except NotEligibleForTurningIn:
-            return Response(status=status.HTTP_403_FORBIDDEN)
+    #     try:
+    #         submission.turn_in()
+    #     except NotEligibleForTurningIn:
+    #         return Response(status=status.HTTP_403_FORBIDDEN)
 
-        return Response(status=status.HTTP_200_OK)
+    #     return Response(status=status.HTTP_200_OK)

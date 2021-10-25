@@ -304,8 +304,8 @@ class SubmissionViewSetTestCase(TestCase):
                 "user": 2,
                 "code": "function max(a,b) { return a>b?a:b }",
                 "is_eligible": True,
-                "has_been_turned_in": False,
-                "public_details": {
+                # "has_been_turned_in": False,
+                "details": {
                     "failed_secret_tests": 0,
                     "tests": [
                         {
@@ -356,9 +356,9 @@ class SubmissionViewSetTestCase(TestCase):
                 "user": 2,
                 "code": "function max(a,b) { return a>b?a:b }",
                 "is_eligible": True,
-                "has_been_turned_in": False,
+                # "has_been_turned_in": False,
                 "total_testcases": 3,
-                "public_details": {  # a student must only see public test case details
+                "details": {  # a student must only see public test case details
                     "tests": [
                         {
                             "id": 1,
@@ -394,7 +394,7 @@ class SubmissionViewSetTestCase(TestCase):
                 "user": 2,
                 "code": "function max(a,b) { return a>b?a:b }",
                 "is_eligible": True,
-                "has_been_turned_in": False,
+                # "has_been_turned_in": False,
                 "total_testcases": 3,
                 "details": {  # all details are shown
                     "tests": [
@@ -456,57 +456,57 @@ class SubmissionViewSetTestCase(TestCase):
         response = view(request, exercise_pk=1, pk=1)
         self.assertEqual(response.status_code, 200)
 
-    def test_submission_turn_in(self):
-        """
-        Shows only eligible submissions can be turned in, and after one submission has been turned in,
-        no more submissions can be turned in
-        """
-        student = User.objects.get(username="student1")
-        exercise = Exercise.objects.get(pk=1)
-        view = SubmissionViewSet.as_view({"put": "turn_in"})
+    # def test_submission_turn_in(self):
+    #     """
+    #     Shows only eligible submissions can be turned in, and after one submission has been turned in,
+    #     no more submissions can be turned in
+    #     """
+    #     student = User.objects.get(username="student1")
+    #     exercise = Exercise.objects.get(pk=1)
+    #     view = SubmissionViewSet.as_view({"put": "turn_in"})
 
-        noneligible_submission = Submission.objects.create(
-            code="function max(a,b) { return a<b?a:b }",
-            exercise=exercise,
-            user=student,
-        )
+    #     noneligible_submission = Submission.objects.create(
+    #         code="function max(a,b) { return a<b?a:b }",
+    #         exercise=exercise,
+    #         user=student,
+    #     )
 
-        eligible_submission = Submission.objects.create(
-            code="function max(a,b) { return a>b?a:b }",
-            exercise=exercise,
-            user=student,
-        )
+    #     eligible_submission = Submission.objects.create(
+    #         code="function max(a,b) { return a>b?a:b }",
+    #         exercise=exercise,
+    #         user=student,
+    #     )
 
-        factory = APIRequestFactory()
+    #     factory = APIRequestFactory()
 
-        # non-eligible submissions cannot be turned in
-        request = factory.put(
-            "/exercises/1/submissions/1/turn_in",
-        )
-        force_authenticate(request, user=student)
-        response = view(request, exercise_pk=1, pk=1)
-        self.assertEqual(response.status_code, 403)
+    #     # non-eligible submissions cannot be turned in
+    #     request = factory.put(
+    #         "/exercises/1/submissions/1/turn_in",
+    #     )
+    #     force_authenticate(request, user=student)
+    #     response = view(request, exercise_pk=1, pk=1)
+    #     self.assertEqual(response.status_code, 403)
 
-        # eligible submissions can be turned in
-        request = factory.put(
-            "/exercises/1/submissions/2/turn_in",
-        )
-        force_authenticate(request, user=student)
-        response = view(request, exercise_pk=1, pk=2)
-        self.assertEqual(response.status_code, 200)
+    #     # eligible submissions can be turned in
+    #     request = factory.put(
+    #         "/exercises/1/submissions/2/turn_in",
+    #     )
+    #     force_authenticate(request, user=student)
+    #     response = view(request, exercise_pk=1, pk=2)
+    #     self.assertEqual(response.status_code, 200)
 
-        # no more submissions can be turned in
-        eligible_submission_2 = Submission.objects.create(
-            code="function max(a,b) { return a>b?a:b }",
-            exercise=exercise,
-            user=student,
-        )
-        request = factory.put(
-            "/exercises/1/submissions/3/turn_in",
-        )
-        force_authenticate(request, user=student)
-        response = view(request, exercise_pk=1, pk=3)
-        self.assertEqual(response.status_code, 403)
+    #     # no more submissions can be turned in
+    #     eligible_submission_2 = Submission.objects.create(
+    #         code="function max(a,b) { return a>b?a:b }",
+    #         exercise=exercise,
+    #         user=student,
+    #     )
+    #     request = factory.put(
+    #         "/exercises/1/submissions/3/turn_in",
+    #     )
+    #     force_authenticate(request, user=student)
+    #     response = view(request, exercise_pk=1, pk=3)
+    #     self.assertEqual(response.status_code, 403)
 
 
 class QuestionViewSetTestCase(TestCase):
@@ -593,7 +593,7 @@ class ExamStateTestCase(TestCase):
             [e["id"] for e in progress_as_dict1["exercises"]],
         )
 
-        self.assertFalse(progress_as_dict1["exercises"][0]["turned_in"])
+        # self.assertFalse(progress_as_dict1["exercises"][0]["turned_in"])
         self.assertEqual(progress_as_dict1["exercises"][0]["submission"], "")
 
         # making a submission without turning it in adds it to the dict but with turned_in=False
@@ -601,7 +601,7 @@ class ExamStateTestCase(TestCase):
             user=self.student1, exercise=e1, code="function a(n) { return 1 }"
         )
         progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
-        self.assertFalse(progress_as_dict1["exercises"][0]["turned_in"])
+        # self.assertFalse(progress_as_dict1["exercises"][0]["turned_in"])
         self.assertEqual(
             progress_as_dict1["exercises"][0]["submission"], submission1.code
         )
@@ -613,7 +613,7 @@ class ExamStateTestCase(TestCase):
             user=self.student1, exercise=e1, code="function a(n) { return n }"
         )
         progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
-        self.assertFalse(progress_as_dict1["exercises"][0]["turned_in"])
+        # self.assertFalse(progress_as_dict1["exercises"][0]["turned_in"])
         self.assertEqual(
             progress_as_dict1["exercises"][0]["submission"], submission2.code
         )
@@ -621,14 +621,14 @@ class ExamStateTestCase(TestCase):
         self.assertEqual(progress_as_dict1["exercises"][0]["failed_testcases"], 0)
 
         # turning in a submission makes that one appear in the dict
-        submission1.turn_in()
-        progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
-        self.assertTrue(progress_as_dict1["exercises"][0]["turned_in"])
-        self.assertEqual(
-            progress_as_dict1["exercises"][0]["submission"], submission1.code
-        )
-        self.assertEqual(progress_as_dict1["exercises"][0]["passed_testcases"], 1)
-        self.assertEqual(progress_as_dict1["exercises"][0]["failed_testcases"], 1)
+        # submission1.turn_in()
+        # progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
+        # self.assertTrue(progress_as_dict1["exercises"][0]["turned_in"])
+        # self.assertEqual(
+        #     progress_as_dict1["exercises"][0]["submission"], submission1.code
+        # )
+        # self.assertEqual(progress_as_dict1["exercises"][0]["passed_testcases"], 1)
+        # self.assertEqual(progress_as_dict1["exercises"][0]["failed_testcases"], 1)
 
         # show that submitting a newer solution with the same number of pased test cases
         # overwrites the older one in the dict
@@ -636,7 +636,7 @@ class ExamStateTestCase(TestCase):
             user=self.student1, exercise=e2, code="function a(n) { return n }"
         )
         progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
-        self.assertFalse(progress_as_dict1["exercises"][1]["turned_in"])
+        # self.assertFalse(progress_as_dict1["exercises"][1]["turned_in"])
         self.assertEqual(
             progress_as_dict1["exercises"][1]["submission"], submission3.code
         )
@@ -647,7 +647,7 @@ class ExamStateTestCase(TestCase):
             user=self.student1, exercise=e2, code="function a(n) { return n; }"
         )
         progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
-        self.assertFalse(progress_as_dict1["exercises"][1]["turned_in"])
+        # self.assertFalse(progress_as_dict1["exercises"][1]["turned_in"])
         self.assertEqual(
             progress_as_dict1["exercises"][1]["submission"], submission4.code
         )
@@ -659,7 +659,7 @@ class ExamStateTestCase(TestCase):
             user=self.student1, exercise=e2, code="function a(n) { return ; }"
         )
         progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
-        self.assertFalse(progress_as_dict1["exercises"][1]["turned_in"])
+        # self.assertFalse(progress_as_dict1["exercises"][1]["turned_in"])
         self.assertEqual(
             progress_as_dict1["exercises"][1]["submission"], submission4.code
         )
@@ -842,23 +842,17 @@ class ExamTestCase(TestCase):
 
         submission = Submission.objects.create(exercise=e1, user=self.student1, code="")
         self.assertTrue(submission.is_eligible)
-        self.assertFalse(submission.has_been_turned_in)
-        self.assertEqual(exam_progress.completed_items_count, 0)
-
-        submission.turn_in()
-        self.assertTrue(submission.has_been_turned_in)
         self.assertEqual(exam_progress.completed_items_count, 1)
 
         submission2 = Submission.objects.create(
             exercise=e2, user=self.student1, code=""
         )
         self.assertTrue(submission2.is_eligible)
-        self.assertFalse(submission2.has_been_turned_in)
-        self.assertEqual(exam_progress.completed_items_count, 1)
-
-        submission2.turn_in()
-        self.assertTrue(submission2.has_been_turned_in)
         self.assertEqual(exam_progress.completed_items_count, 2)
+
+        submission2.is_eligible = False
+        submission2.save()
+        self.assertEqual(exam_progress.completed_items_count, 1)
 
     def test_exam_progress_generation_and_cursor(self):
         """

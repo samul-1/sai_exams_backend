@@ -584,8 +584,8 @@ class ExamProgress(models.Model):
         exists_given_answer = GivenAnswer.objects.filter(
             user=self.user, question=OuterRef("pk")
         )
-        exists_turned_in_submission = Submission.objects.filter(
-            user=self.user, has_been_turned_in=True, exercise=OuterRef("pk")
+        exists_eligible_submission = Submission.objects.filter(
+            user=self.user, is_eligible=True, exercise=OuterRef("pk")
         )
         return (
             self.questions.all()
@@ -593,8 +593,8 @@ class ExamProgress(models.Model):
             .filter(given_answer_exists=True)
             .count()
             + self.exercises.all()
-            .annotate(turned_in_submission_exists=Exists(exists_turned_in_submission))
-            .filter(turned_in_submission_exists=True)
+            .annotate(eligible_submission_exists=Exists(exists_eligible_submission))
+            .filter(eligible_submission_exists=True)
             .count()
         )
 
@@ -795,21 +795,21 @@ class ExamProgress(models.Model):
                 "testcases": [t.assertion for t in exercise.testcases.all()],
             }
 
-            try:
-                relevant_submission = submissions.get(has_been_turned_in=True)
-                turned_in = True
-            except Submission.DoesNotExist:
-                submissions = sorted(
-                    list(submissions),
-                    key=lambda s: s.get_passed_testcases(),
-                    reverse=True,
-                )
-                relevant_submission = (
-                    submissions[0]
-                    if len(submissions) > 0
-                    else Submission(code="", exercise=exercise)
-                )
-                turned_in = False
+            # try:
+            #     relevant_submission = submissions.get(has_been_turned_in=True)
+            #     turned_in = True
+            # except Submission.DoesNotExist:
+            submissions = sorted(
+                list(submissions),
+                key=lambda s: (s.get_passed_testcases(), s.timestamp),
+                reverse=True,
+            )
+            relevant_submission = (
+                submissions[0]
+                if len(submissions) > 0
+                else Submission(code="", exercise=exercise)
+            )
+            turned_in = True
 
             e.update(
                 {
@@ -898,7 +898,10 @@ class Submission(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="submissions"
     )
     exercise = models.ForeignKey(
-        Exercise, on_delete=models.CASCADE, related_name="submissions"
+        Exercise,
+        null=True,
+        on_delete=models.CASCADE,
+        related_name="submissions",
     )
     timestamp = models.DateTimeField(auto_now_add=True)
 
@@ -912,7 +915,7 @@ class Submission(models.Model):
     is_eligible = models.BooleanField(default=False)
 
     # True if marked by user as their final submission
-    has_been_turned_in = models.BooleanField(default=False)
+    # TODO remove has_been_turned_in = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-timestamp"]
@@ -962,12 +965,13 @@ class Submission(models.Model):
         if creating:  # AFTER the object has been created, run code
             # doing things in this order prevent the calls to save() inside eval_submission()
             # from creating and endless loop
+            if self.exercise is None:
+                raise ValidationError
             self.eval_submission()
 
     def eval_submission(self):
-        # submission has already been confirmed
-        if self.has_been_turned_in:
-            raise SubmissionAlreadyTurnedIn
+        # if self.has_been_turned_in:
+        #     raise SubmissionAlreadyTurnedIn
 
         testcases = self.exercise.testcases.all()
 
@@ -997,21 +1001,22 @@ class Submission(models.Model):
         self.is_eligible = passed_testcases >= self.exercise.min_passing_testcases
         self.save()
 
-    def turn_in(self):
-        if (
-            not self.is_eligible
-            or self.exercise.submissions.filter(
-                user=self.user, has_been_turned_in=True
-            ).exists()
-        ):
-            raise NotEligibleForTurningIn
+    # TODO remove
+    # def turn_in(self):
+    #     if (
+    #         not self.is_eligible
+    #         or self.exercise.submissions.filter(
+    #             user=self.user, has_been_turned_in=True
+    #         ).exists()
+    #     ):
+    #         raise NotEligibleForTurningIn
 
-        if self.user.is_teacher:
-            # fake turning in the submission for teachers using student mode
-            return
+    #     if self.user.is_teacher:
+    #         # fake turning in the submission for teachers using student mode
+    #         return
 
-        self.has_been_turned_in = True
-        self.save()
+    #     self.has_been_turned_in = True
+    #     self.save()
 
 
 class Answer(models.Model):

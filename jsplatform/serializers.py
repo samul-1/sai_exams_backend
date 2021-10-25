@@ -670,9 +670,13 @@ class SubmissionSerializer(serializers.ModelSerializer):
             "code",
             "timestamp",
             "is_eligible",
-            "has_been_turned_in",
+            # TODO remove "has_been_turned_in",
         ]
-        read_only_fields = ["is_eligible", "user", "has_been_turned_in"]
+        read_only_fields = [
+            "is_eligible",
+            "user",
+            # TODO remove "has_been_turned_in",
+        ]
 
     def __init__(self, *args, **kwargs):
         super(SubmissionSerializer, self).__init__(*args, **kwargs)
@@ -692,7 +696,11 @@ class SubmissionSerializer(serializers.ModelSerializer):
         self.fields["total_testcases"] = serializers.SerializerMethodField()
 
     def get_total_testcases(self, obj):
-        return obj.exercise.testcases.count()
+        return (
+            obj.exercise.testcases.count()
+            if obj.exercise is not None
+            else len(obj.details.get("tests", []))
+        )
 
     def create(self, validated_data):
         submission = Submission.objects.create(**validated_data)
