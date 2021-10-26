@@ -280,7 +280,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     def give_answer(self, request, **kwargs):
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
         user = request.user
-        if exam.closed:  # and not request.user.is_teacher:
+        if exam.closed and not request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
