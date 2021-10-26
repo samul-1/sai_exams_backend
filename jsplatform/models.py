@@ -754,6 +754,9 @@ class ExamProgress(models.Model):
 
         for question in questions:
             given_answers = question.given_answers.filter(user=self.user)
+            question_through_row = self.examprogressquestionsthroughmodel_set.get(
+                question=question
+            )
 
             q = {
                 "id": question.pk,
@@ -762,6 +765,9 @@ class ExamProgress(models.Model):
                 ),  # we don't want the TeX as svg in csv
                 "type": question.question_type,
                 "introduction_text": preprocess_fn(question.introduction_text),
+                "seen_at": timezone.localtime(question_through_row.seen_at)
+                if question_through_row.ordering > 0
+                else timezone.localtime(self.begun_at)
                 # "accepts_multiple_answers": question.accepts_multiple_answers,
             }
             if question.question_type == "m":
@@ -776,6 +782,8 @@ class ExamProgress(models.Model):
             else:  # open question
                 q["answer_text"] = (
                     escape_unsafe_text(given_answers[0].text)
+                    if for_pdf
+                    else preprocess_fn(given_answers[0].text)
                     if given_answers.exists()
                     else ""
                 )
@@ -783,40 +791,48 @@ class ExamProgress(models.Model):
 
         for exercise in exercises:
             submissions = exercise.submissions.filter(user=self.user)
-
+            exercise_through_row = self.examprogressexercisesthroughmodel_set.get(
+                exercise=exercise
+            )
             e = {
                 "id": exercise.pk,
                 "text": preprocess_fn(
                     exercise.rendered_text if for_pdf else exercise.text
                 ),  # we don't want the TeX as svg in csv
                 "starting_code": escape_unsafe_text(exercise.starting_code)
+                if for_pdf
+                else preprocess_fn(exercise.starting_code)
                 if len(exercise.starting_code) > 0
                 else None,
                 "testcases": [t.assertion for t in exercise.testcases.all()],
+                "seen_at": timezone.localtime(exercise_through_row.seen_at)
+                if exercise_through_row.ordering > 0
+                else timezone.localtime(self.begun_at),
             }
 
-            # try:
-            #     relevant_submission = submissions.get(has_been_turned_in=True)
-            #     turned_in = True
-            # except Submission.DoesNotExist:
             submissions = sorted(
                 list(submissions),
                 key=lambda s: (s.get_passed_testcases(), s.timestamp),
                 reverse=True,
             )
-            relevant_submission = (
-                submissions[0]
-                if len(submissions) > 0
-                else Submission(code="", exercise=exercise)
-            )
-            turned_in = True
+
+            try:
+                relevant_submission = submissions[0]
+                turned_in = True
+            except IndexError:  # no submissions for this exercise from this user
+                relevant_submission = Submission(code="", exercise=exercise)
+                turned_in = False
 
             e.update(
                 {
                     "submission": escape_unsafe_text(relevant_submission.code)
                     if for_pdf
+                    else preprocess_fn(relevant_submission.code)
+                    if for_pdf
                     else relevant_submission.code,
-                    "turned_in": turned_in,
+                    "submitted_at": timezone.localtime(relevant_submission.timestamp)
+                    if turned_in
+                    else None,
                     "passed_testcases": relevant_submission.get_passed_testcases(),
                     "failed_testcases": relevant_submission.get_failed_testcases(),
                     "submission_details": relevant_submission.details,

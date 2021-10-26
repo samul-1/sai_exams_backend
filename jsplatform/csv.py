@@ -11,9 +11,13 @@ def preprocess_html_for_csv(html):
     """
 
     # remove this sequence that the frontend editor annoyingly appends to everything
-    ret = html.replace("<p><br></p>", "").replace(
-        "&nbsp;", " "
-    )  # FIXME replace other html entities too
+    ret = (
+        html.replace("<p><br></p>", "")
+        .replace("&nbsp;", " ")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+    )
 
     ret = re.sub(r'src="([^"]+)"', "", ret)
     ret = re.sub(r"<[^>]*/?p[^>]*>", "", ret)
@@ -23,7 +27,7 @@ def preprocess_html_for_csv(html):
 
 
 def get_header_row(exam):
-    headers = ["Corso", "Email"]
+    headers = ["Corso", "Email", "Cognome", "Nome"]
 
     question_count, exercise_count = exam.get_number_of_items_per_exam(as_tuple=True)
 
@@ -31,14 +35,14 @@ def get_header_row(exam):
         headers.append(f"Domanda { i+1 } testo")
         headers.append(f"Domanda { i+1 } risposta data")
         headers.append(f"Domanda { i+1 } risposta corretta")
-        # headers.append(f"Domanda { i+1 } orario visualizzazione")
+        headers.append(f"Domanda { i+1 } orario visualizzazione")
         # headers.append(f"Domanda { i+1 } orario risposta")
 
     for i in range(0, exercise_count):
         headers.append(f"Esercizio JS { i+1 } testo")
         headers.append(f"Esercizio JS { i+1 } sottomissione")
-        # headers.append(f"Esercizio JS { i+1 } orario visualizzazione")
-        # headers.append(f"Esercizio JS { i+1 } orario consegna")
+        headers.append(f"Esercizio JS { i+1 } orario visualizzazione")
+        headers.append(f"Esercizio JS { i+1 } orario consegna")
         headers.append(f"Esercizio JS { i+1 } testcase superati")
         headers.append(f"Esercizio JS { i+1 } testcase falliti")
 
@@ -47,7 +51,7 @@ def get_header_row(exam):
 
 def build_user_row(participation):
     user = participation.user
-    row = [user.course, user.email]
+    row = [user.course, user.email, user.last_name, user.first_name]
 
     progress = participation.get_progress_as_dict(for_csv=True)
 
@@ -80,15 +84,20 @@ def build_user_row(participation):
                     )
                 )
 
+        row.append(question["seen_at"])
+        # row.append(question["answered_at"])
+
     for exercise in progress["exercises"]:
         row.append(exercise["text"])
-        submission_cell_text = exercise["submission"]
-        if not exercise["turned_in"]:
-            submission_cell_text = (
-                "[LO STUDENTE NON HA CONSEGNATO; QUESTA È LA SUA SOTTOMISSIONE MIGLIORE]\n\n"
-                + submission_cell_text
-            )
-        row.append(submission_cell_text)
+        # submission_cell_text = exercise["submission"]
+        # if not exercise["turned_in"]:
+        #     submission_cell_text = (
+        #         "[LO STUDENTE NON HA CONSEGNATO; QUESTA È LA SUA SOTTOMISSIONE MIGLIORE]\n\n"
+        #         + submission_cell_text
+        #     )
+        row.append(exercise["submission"])
+        row.append(exercise["seen_at"])
+        row.append(exercise["submitted_at"])
         row.append(exercise["passed_testcases"])
         row.append(exercise["failed_testcases"])
 
