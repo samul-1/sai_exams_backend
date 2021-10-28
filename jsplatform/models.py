@@ -781,9 +781,11 @@ class ExamProgress(models.Model):
                 ]
             else:  # open question
                 q["answer_text"] = (
-                    escape_unsafe_text(given_answers[0].text)
-                    if for_pdf
-                    else preprocess_fn(given_answers[0].text)
+                    (
+                        escape_unsafe_text(given_answers[0].text)
+                        if for_pdf
+                        else preprocess_fn(given_answers[0].text)
+                    )
                     if given_answers.exists()
                     else ""
                 )
