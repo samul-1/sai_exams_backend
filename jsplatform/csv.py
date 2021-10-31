@@ -20,7 +20,8 @@ def preprocess_html_for_csv(html):
     )
 
     ret = re.sub(r'src="([^"]+)"', "", ret)
-    ret = re.sub(r"<[^>]*/?p[^>]*>", "", ret)
+    # ret = re.sub(r"</?p[^>]*>", "", ret)
+    ret = re.sub(r"</?p( style=('|\")[^\"']*('|\"))?>", "", ret)
     ret = re.sub(r"<br\s*/?>", "\n", ret)
 
     return ret

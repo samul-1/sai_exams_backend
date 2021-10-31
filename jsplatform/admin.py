@@ -106,7 +106,10 @@ class AnswerAdmin(admin.ModelAdmin):
 
 @admin.register(GivenAnswer)
 class GivenAnswerAdmin(admin.ModelAdmin):
-    pass
+    readonly_fields = (
+        "timestamp",
+        "last_updated",
+    )
 
 
 @admin.register(ExamReport)
