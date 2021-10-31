@@ -1093,6 +1093,7 @@ class GivenAnswer(models.Model):
     # used if the referenced question is an open-ended one
     text = models.TextField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
         constraints = [
