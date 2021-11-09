@@ -6,7 +6,6 @@ from django.core.files.base import ContentFile
 from django.template import Context
 from django.template.loader import get_template
 from weasyprint import HTML
-from weasyprint.fonts import FontConfiguration
 
 from .tex import tex_to_svg
 
@@ -47,8 +46,7 @@ def render_to_pdf(template_src, context_dict, render_tex=False):
     if render_tex:
         html = tex_to_svg(html)
 
-    font_config = FontConfiguration()
-    pdf_bin = HTML(string=html).write_pdf(font_config=font_config)
+    pdf_bin = HTML(string=html).write_pdf()
     pdf = ContentFile(pdf_bin)
 
     return pdf

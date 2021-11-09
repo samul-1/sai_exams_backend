@@ -579,14 +579,22 @@ class ExamProgress(models.Model):
     def completed_items_count(self):
         # returns the number of questions assigned to `self` referenced by at least
         # one GivenAnswer from this user (there could be more if the question
-        # accepts multiple answers)
+        # accepts multiple answers) plus the number of exercises referenced by one
+        # turned in submission from this user
         exists_given_answer = GivenAnswer.objects.filter(
             user=self.user, question=OuterRef("pk")
+        )
+        exists_eligible_submission = Submission.objects.filter(
+            user=self.user, is_eligible=True, exercise=OuterRef("pk")
         )
         return (
             self.questions.all()
             .annotate(given_answer_exists=Exists(exists_given_answer))
             .filter(given_answer_exists=True)
+            .count()
+            + self.exercises.all()
+            .annotate(eligible_submission_exists=Exists(exists_eligible_submission))
+            .filter(eligible_submission_exists=True)
             .count()
         )
 
@@ -686,6 +694,20 @@ class ExamProgress(models.Model):
             self.current_item_cursor += 1
             self.save()
 
+            # update seen_at time for new current item
+            try:
+                new_current_through_row = ExamProgressQuestionsThroughModel.objects.get(
+                    exam_progress=self, ordering=self.current_item_cursor
+                )
+            except ExamProgressQuestionsThroughModel.DoesNotExist:
+                new_current_through_row = ExamProgressExercisesThroughModel.objects.get(
+                    exam_progress=self, ordering=self.current_item_cursor
+                )
+            now = timezone.localtime(timezone.now())
+            if new_current_through_row.seen_at is None:
+                new_current_through_row.seen_at = now
+                new_current_through_row.save()
+
         return self.current_item
 
     def get_progress_as_dict(self, for_csv=False, for_pdf=False):
@@ -732,6 +754,9 @@ class ExamProgress(models.Model):
 
         for question in questions:
             given_answers = question.given_answers.filter(user=self.user)
+            question_through_row = self.examprogressquestionsthroughmodel_set.get(
+                question=question
+            )
 
             q = {
                 "id": question.pk,
@@ -740,6 +765,9 @@ class ExamProgress(models.Model):
                 ),  # we don't want the TeX as svg in csv
                 "type": question.question_type,
                 "introduction_text": preprocess_fn(question.introduction_text),
+                "seen_at": timezone.localtime(question_through_row.seen_at)
+                if question_through_row.ordering > 0
+                else timezone.localtime(self.begun_at)
                 # "accepts_multiple_answers": question.accepts_multiple_answers,
             }
             if question.question_type == "m":
@@ -753,7 +781,11 @@ class ExamProgress(models.Model):
                 ]
             else:  # open question
                 q["answer_text"] = (
-                    escape_unsafe_text(given_answers[0].text)
+                    (
+                        escape_unsafe_text(given_answers[0].text)
+                        if for_pdf
+                        else preprocess_fn(given_answers[0].text)
+                    )
                     if given_answers.exists()
                     else ""
                 )
@@ -761,35 +793,51 @@ class ExamProgress(models.Model):
 
         for exercise in exercises:
             submissions = exercise.submissions.filter(user=self.user)
-
+            exercise_through_row = self.examprogressexercisesthroughmodel_set.get(
+                exercise=exercise
+            )
             e = {
                 "id": exercise.pk,
                 "text": preprocess_fn(
                     exercise.rendered_text if for_pdf else exercise.text
                 ),  # we don't want the TeX as svg in csv
+                "starting_code": escape_unsafe_text(exercise.starting_code)
+                if for_pdf
+                else preprocess_fn(exercise.starting_code)
+                if len(exercise.starting_code) > 0
+                else None,
                 "testcases": [t.assertion for t in exercise.testcases.all()],
+                "seen_at": timezone.localtime(exercise_through_row.seen_at)
+                if exercise_through_row.ordering > 0
+                else timezone.localtime(self.begun_at),
             }
 
+            submissions = sorted(
+                list(submissions),
+                key=lambda s: (s.get_passed_testcases(), s.timestamp),
+                reverse=True,
+            )
+
             try:
-                relevant_submission = submissions.get(has_been_turned_in=True)
+                relevant_submission = submissions[0]
                 turned_in = True
-            except Submission.DoesNotExist:
-                submissions = sorted(
-                    list(submissions),
-                    key=lambda s: s.get_passed_testcases(),
-                    reverse=True,
-                )
-                relevant_submission = (
-                    submissions[0] if len(submissions) > 0 else Submission(code="")
-                )
+            except IndexError:  # no submissions for this exercise from this user
+                relevant_submission = Submission(code="", exercise=exercise)
                 turned_in = False
 
             e.update(
                 {
-                    "submission": relevant_submission.code,
-                    "turned_in": turned_in,
+                    "submission": escape_unsafe_text(relevant_submission.code)
+                    if for_pdf
+                    else preprocess_fn(relevant_submission.code)
+                    if for_pdf
+                    else relevant_submission.code,
+                    "submitted_at": timezone.localtime(relevant_submission.timestamp)
+                    if turned_in
+                    else None,
                     "passed_testcases": relevant_submission.get_passed_testcases(),
                     "failed_testcases": relevant_submission.get_failed_testcases(),
+                    "submission_details": relevant_submission.details,
                 },
             )
             ret["exercises"].append(e)
@@ -817,6 +865,7 @@ class ExamProgressQuestionsThroughModel(models.Model):
     ordering = models.PositiveIntegerField()
     exam_progress = models.ForeignKey(ExamProgress, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    seen_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["ordering"]
@@ -826,6 +875,10 @@ class ExamProgressExercisesThroughModel(models.Model):
     ordering = models.PositiveIntegerField()
     exam_progress = models.ForeignKey(ExamProgress, on_delete=models.CASCADE)
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE)
+    seen_at = models.DateTimeField(null=True, blank=True)
+    draft_code = models.TextField(
+        blank=True
+    )  # contains what's currently in the user code editor
 
     class Meta:
         ordering = ["ordering"]
@@ -863,7 +916,10 @@ class Submission(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="submissions"
     )
     exercise = models.ForeignKey(
-        Exercise, on_delete=models.CASCADE, related_name="submissions"
+        Exercise,
+        null=True,
+        on_delete=models.CASCADE,
+        related_name="submissions",
     )
     timestamp = models.DateTimeField(auto_now_add=True)
 
@@ -877,16 +933,16 @@ class Submission(models.Model):
     is_eligible = models.BooleanField(default=False)
 
     # True if marked by user as their final submission
-    has_been_turned_in = models.BooleanField(default=False)
+    # TODO remove has_been_turned_in = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-timestamp"]
 
     def __str__(self):
-        return self.code
+        return self.user.full_name + " - " + self.code
 
     def get_passed_testcases(self):
-        if self.details is None:
+        if self.details is None or "error" in self.details:
             return 0
         return len([t for t in self.details["tests"] if t["passed"]])
 
@@ -927,12 +983,13 @@ class Submission(models.Model):
         if creating:  # AFTER the object has been created, run code
             # doing things in this order prevent the calls to save() inside eval_submission()
             # from creating and endless loop
+            if self.exercise is None:
+                raise ValidationError
             self.eval_submission()
 
     def eval_submission(self):
-        # submission has already been confirmed
-        if self.has_been_turned_in:
-            raise SubmissionAlreadyTurnedIn
+        # if self.has_been_turned_in:
+        #     raise SubmissionAlreadyTurnedIn
 
         testcases = self.exercise.testcases.all()
 
@@ -962,17 +1019,22 @@ class Submission(models.Model):
         self.is_eligible = passed_testcases >= self.exercise.min_passing_testcases
         self.save()
 
-    def turn_in(self):
-        if (
-            not self.is_eligible
-            or self.exercise.submissions.filter(
-                user=self.user, has_been_turned_in=True
-            ).exists()
-        ):
-            raise NotEligibleForTurningIn
+    # TODO remove
+    # def turn_in(self):
+    #     if (
+    #         not self.is_eligible
+    #         or self.exercise.submissions.filter(
+    #             user=self.user, has_been_turned_in=True
+    #         ).exists()
+    #     ):
+    #         raise NotEligibleForTurningIn
 
-        self.has_been_turned_in = True
-        self.save()
+    #     if self.user.is_teacher:
+    #         # fake turning in the submission for teachers using student mode
+    #         return
+
+    #     self.has_been_turned_in = True
+    #     self.save()
 
 
 class Answer(models.Model):
@@ -1031,6 +1093,7 @@ class GivenAnswer(models.Model):
     # used if the referenced question is an open-ended one
     text = models.TextField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
         constraints = [

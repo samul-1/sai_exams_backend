@@ -8,8 +8,8 @@ assertions is an ARRAY of strings representing assertions made using node assert
 
 
 output: 
-an array printed to the console (and collected by Django via subprocess.check_output()) where each entry 
-corresponds to an assertion and is an object:
+an array printed to the console (and collected by Django via subprocess.check_output()) where each
+entry corresponds to an assertion and is an object:
 { 
     id: Number,
     assertion: String,
@@ -24,7 +24,8 @@ passed represents the outcome of running the assertion on the program,
 and error is only present if the assertion failed
 */
 
-// The VM2 module allows to execute arbitrary code safely using a sandboxed, secure virtual machine
+// The VM2 module allows execution of arbitrary code safely using
+// a sandboxed, secure virtual machine
 const { VM } = require('vm2')
 const assert = require('assert')
 const AssertionError = require('assert').AssertionError
@@ -41,27 +42,9 @@ const safevm = new VM({
   }
 })
 
-// extracts useful information from vm error messages, throwing away all the data about vm context
-// which is irrelevant to the user-submitted program
-// function prettyPrintError (e) {
-//   const [errMsg, errStackLine] = e.stack.split('\n')
-//   // get line and char position information
-//   // the -1 offset on line number is because the code ran by the vm adds a `const output = []` on the
-//   // first line before injecting user's code
-//   const errStackLineFormatted = errStackLine.replace(
-//     /(.*):(\d+):(\d+)/g,
-//     function (a, b, c, d) {
-//       return `on line ${parseInt(c) - 1}, at position ${d}`
-//     }
-//   )
-//   return (
-//     errMsg +
-//     (errMsg.match(/Script execution timed out after/g)
-//       ? '' // hide line information if error is about the code timing out
-//       : ' ' + errStackLineFormatted)
-//   )
-// }
 function prettyPrintError (e) {
+  // removes information about the stack of the vm from the error message and only
+  // shows the info relevant to the user code
   const tokens = e.stack.split(/(.*)at (new Script(.*))?vm.js:([0-9]+)(.*)/)
   const rawStr = tokens[0] // error message
 
@@ -73,9 +56,11 @@ function prettyPrintError (e) {
   const formattedStr = rawStr.replace(
     /(.*)vm.js:([0-9]+):?([0-9]+)?(.*)/g,
     function (a, b, c, d) {
+      // actual line of the error is one less than what's detected due to an
+      // additional line of code injected in the vm (hence the -1)
       return `on line ${parseInt(c) - 1}` + (d ? `, at position ${d})` : '')
     }
-  ) // actual line of the error is one less than what's detected due to an additional line of code injected in the vm
+  )
   return formattedStr
 }
 
@@ -97,19 +82,19 @@ const userCode = process.argv[2]
 
 const assertions = JSON.parse(process.argv[3])
 
-// turn array of strings representing assertion to a series of try-catch's where those assertions
-// are evaluated and the result is pushed to an array - this string will be inlined into the program
-// that the vm will run
+// turn array of strings representing assertions to a series of try-catch blocks
+//  where those assertions are evaluated and the result is pushed to an array
+// the resulting string will be inlined into the program that the vm will run
 const assertionString = assertions
   .map(
     (
-      a // put assertion into a try-catch
+      a // put assertion into a try-catch block
     ) =>
       `
         ran = {id: ${a.id}, assertion: '${a.assertion}', is_public: ${a.is_public}}
         try {
             ${a.assertion} // run the assertion
-            ran.passed = true
+            ran.passed = true // if no exception is thrown, the test case passed
         } catch(e) {
             ran.passed = false
             if(e instanceof AssertionError) {
@@ -124,9 +109,9 @@ const assertionString = assertions
   .reduce((a, b) => a + b, '') // reduce array of strings to a string
 
 // support for executing the user-submitted program
-// contains a utility function to stringify errors, the user code, and a series of try-catch's
-// where assertions are ran against the user code; the program evaluates to an array of outcomes
-// resulting from those assertions
+// contains the user code and a series of try-catch blocks
+// where assertions are ran against the user code; the program evaluates to an array of
+// outcomes resulting from those assertions
 const runnableProgram = `const output_wquewoajfjoiwqi = []; const arr_jiodferwqjefio = Array; const push_djiowqufewio = Array.prototype.push; const shift_dfehwioioefn = Array.prototype.shift
 ${userCode}
 // USER CODE ENDS HERE
@@ -156,21 +141,6 @@ try {
   const outcome = safevm.run(runnableProgram) // run program
   console.log(JSON.stringify({ tests: outcome })) // output outcome so Django can collect it
 } catch (e) {
+  // an error occurred before any test cases could be ran
   console.log(JSON.stringify({ error: prettyPrintError(e) }))
 }
-
-/*
-this stuff is no longer needed and is to be removed soon
-
-const { string } = require('yargs');
-
-
-// utility function to turn Error data to strings
-function stringifyError(err, filter, space) {
-    var plainObject = {};
-    Object.getOwnPropertyNames(err).forEach(function(key) {
-      plainObject[key] = err[key]
-    })
-    return JSON.stringify(plainObject, filter, space)
-}
-*/

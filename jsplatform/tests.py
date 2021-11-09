@@ -5,18 +5,29 @@ from django.db import transaction
 from django.db.utils import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
-from rest_framework.test import (APIClient, APIRequestFactory,
-                                 force_authenticate)
+from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
 from users.models import User
 
-from jsplatform.exceptions import (ExamCompletedException,
-                                   InvalidAnswerException, InvalidCategoryType,
-                                   TooManyAnswers)
-from jsplatform.models import (Answer, Category, Exam, ExamProgress,
-                               ExamProgressQuestionsThroughModel, Exercise,
-                               GivenAnswer, Question, Submission)
-from jsplatform.models import \
-    TestCase as TestCase_  # prevent name conflict with django TestCase class
+from jsplatform.exceptions import (
+    ExamCompletedException,
+    InvalidAnswerException,
+    InvalidCategoryType,
+    TooManyAnswers,
+)
+from jsplatform.models import (
+    Answer,
+    Category,
+    Exam,
+    ExamProgress,
+    ExamProgressQuestionsThroughModel,
+    Exercise,
+    GivenAnswer,
+    Question,
+    Submission,
+)
+from jsplatform.models import (
+    TestCase as TestCase_,
+)  # prevent name conflict with django TestCase class
 from jsplatform.views import ExamViewSet, ExerciseViewSet, SubmissionViewSet
 
 
@@ -284,15 +295,17 @@ class SubmissionViewSetTestCase(TestCase):
         response.render()
         content = json.loads(response.content)
         content.pop("timestamp")  # remove timestamp as it's non-deterministic
+        self.maxDiff = None
         self.assertEqual(
             content,
             {
                 "id": 1,
+                "total_testcases": 3,
                 "user": 2,
                 "code": "function max(a,b) { return a>b?a:b }",
                 "is_eligible": True,
-                "has_been_turned_in": False,
-                "public_details": {
+                # "has_been_turned_in": False,
+                "details": {
                     "failed_secret_tests": 0,
                     "tests": [
                         {
@@ -335,6 +348,7 @@ class SubmissionViewSetTestCase(TestCase):
         response.render()
         content = json.loads(response.content)
         content.pop("timestamp")  # remove timestamp as it's non-deterministic
+
         self.assertEqual(
             content,
             {
@@ -342,8 +356,9 @@ class SubmissionViewSetTestCase(TestCase):
                 "user": 2,
                 "code": "function max(a,b) { return a>b?a:b }",
                 "is_eligible": True,
-                "has_been_turned_in": False,
-                "public_details": {  # a student must only see public test case details
+                # "has_been_turned_in": False,
+                "total_testcases": 3,
+                "details": {  # a student must only see public test case details
                     "tests": [
                         {
                             "id": 1,
@@ -379,7 +394,8 @@ class SubmissionViewSetTestCase(TestCase):
                 "user": 2,
                 "code": "function max(a,b) { return a>b?a:b }",
                 "is_eligible": True,
-                "has_been_turned_in": False,
+                # "has_been_turned_in": False,
+                "total_testcases": 3,
                 "details": {  # all details are shown
                     "tests": [
                         {
@@ -440,57 +456,57 @@ class SubmissionViewSetTestCase(TestCase):
         response = view(request, exercise_pk=1, pk=1)
         self.assertEqual(response.status_code, 200)
 
-    def test_submission_turn_in(self):
-        """
-        Shows only eligible submissions can be turned in, and after one submission has been turned in,
-        no more submissions can be turned in
-        """
-        student = User.objects.get(username="student1")
-        exercise = Exercise.objects.get(pk=1)
-        view = SubmissionViewSet.as_view({"put": "turn_in"})
+    # def test_submission_turn_in(self):
+    #     """
+    #     Shows only eligible submissions can be turned in, and after one submission has been turned in,
+    #     no more submissions can be turned in
+    #     """
+    #     student = User.objects.get(username="student1")
+    #     exercise = Exercise.objects.get(pk=1)
+    #     view = SubmissionViewSet.as_view({"put": "turn_in"})
 
-        noneligible_submission = Submission.objects.create(
-            code="function max(a,b) { return a<b?a:b }",
-            exercise=exercise,
-            user=student,
-        )
+    #     noneligible_submission = Submission.objects.create(
+    #         code="function max(a,b) { return a<b?a:b }",
+    #         exercise=exercise,
+    #         user=student,
+    #     )
 
-        eligible_submission = Submission.objects.create(
-            code="function max(a,b) { return a>b?a:b }",
-            exercise=exercise,
-            user=student,
-        )
+    #     eligible_submission = Submission.objects.create(
+    #         code="function max(a,b) { return a>b?a:b }",
+    #         exercise=exercise,
+    #         user=student,
+    #     )
 
-        factory = APIRequestFactory()
+    #     factory = APIRequestFactory()
 
-        # non-eligible submissions cannot be turned in
-        request = factory.put(
-            "/exercises/1/submissions/1/turn_in",
-        )
-        force_authenticate(request, user=student)
-        response = view(request, exercise_pk=1, pk=1)
-        self.assertEqual(response.status_code, 403)
+    #     # non-eligible submissions cannot be turned in
+    #     request = factory.put(
+    #         "/exercises/1/submissions/1/turn_in",
+    #     )
+    #     force_authenticate(request, user=student)
+    #     response = view(request, exercise_pk=1, pk=1)
+    #     self.assertEqual(response.status_code, 403)
 
-        # eligible submissions can be turned in
-        request = factory.put(
-            "/exercises/1/submissions/2/turn_in",
-        )
-        force_authenticate(request, user=student)
-        response = view(request, exercise_pk=1, pk=2)
-        self.assertEqual(response.status_code, 200)
+    #     # eligible submissions can be turned in
+    #     request = factory.put(
+    #         "/exercises/1/submissions/2/turn_in",
+    #     )
+    #     force_authenticate(request, user=student)
+    #     response = view(request, exercise_pk=1, pk=2)
+    #     self.assertEqual(response.status_code, 200)
 
-        # no more submissions can be turned in
-        eligible_submission_2 = Submission.objects.create(
-            code="function max(a,b) { return a>b?a:b }",
-            exercise=exercise,
-            user=student,
-        )
-        request = factory.put(
-            "/exercises/1/submissions/3/turn_in",
-        )
-        force_authenticate(request, user=student)
-        response = view(request, exercise_pk=1, pk=3)
-        self.assertEqual(response.status_code, 403)
+    #     # no more submissions can be turned in
+    #     eligible_submission_2 = Submission.objects.create(
+    #         code="function max(a,b) { return a>b?a:b }",
+    #         exercise=exercise,
+    #         user=student,
+    #     )
+    #     request = factory.put(
+    #         "/exercises/1/submissions/3/turn_in",
+    #     )
+    #     force_authenticate(request, user=student)
+    #     response = view(request, exercise_pk=1, pk=3)
+    #     self.assertEqual(response.status_code, 403)
 
 
 class QuestionViewSetTestCase(TestCase):
@@ -545,9 +561,110 @@ class ExamStateTestCase(TestCase):
         self.q2a1 = Answer.objects.create(question=self.q2, text="abc")
         self.q2a2 = Answer.objects.create(question=self.q2, text="abc")
 
-    def test_exam_progress(self):
-        # todo test exam.get_current_progress
-        pass
+    def test_exam_progress_with_exercises(self):
+        now = timezone.localtime(timezone.now())
+        tomorrow = now + timedelta(days=1)
+
+        exam = Exam.objects.create(
+            name="Test exam",
+            begin_timestamp=now,
+            end_timestamp=tomorrow,
+            draft=False,
+        )
+        cat2 = Category.objects.create(
+            exam=exam, name="cat2", amount=2, item_type="e", randomize=False
+        )
+        e1 = Exercise.objects.create(
+            exam=exam, text="exercise1", category=cat2, min_passing_testcases=0
+        )
+        TestCase_.objects.create(exercise=e1, assertion="assert.equal(a(1),1)")
+        TestCase_.objects.create(exercise=e1, assertion="assert.equal(a(2),2)")
+
+        e2 = Exercise.objects.create(
+            exam=exam, text="exercise2", category=cat2, min_passing_testcases=0
+        )
+        TestCase_.objects.create(exercise=e2, assertion="assert.equal(a(1),1)")
+        TestCase_.objects.create(exercise=e2, assertion="assert.equal(a(2),2)")
+
+        exam_progress = ExamProgress.objects.create(user=self.student1, exam=exam)
+        progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
+        self.assertListEqual(
+            [e1.pk, e2.pk],
+            [e["id"] for e in progress_as_dict1["exercises"]],
+        )
+
+        # self.assertFalse(progress_as_dict1["exercises"][0]["turned_in"])
+        self.assertEqual(progress_as_dict1["exercises"][0]["submission"], "")
+
+        # making a submission without turning it in adds it to the dict but with turned_in=False
+        submission1 = Submission.objects.create(
+            user=self.student1, exercise=e1, code="function a(n) { return 1 }"
+        )
+        progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
+        # self.assertFalse(progress_as_dict1["exercises"][0]["turned_in"])
+        self.assertEqual(
+            progress_as_dict1["exercises"][0]["submission"], submission1.code
+        )
+        self.assertEqual(progress_as_dict1["exercises"][0]["passed_testcases"], 1)
+        self.assertEqual(progress_as_dict1["exercises"][0]["failed_testcases"], 1)
+
+        # making a better submission overwrites the former
+        submission2 = Submission.objects.create(
+            user=self.student1, exercise=e1, code="function a(n) { return n }"
+        )
+        progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
+        # self.assertFalse(progress_as_dict1["exercises"][0]["turned_in"])
+        self.assertEqual(
+            progress_as_dict1["exercises"][0]["submission"], submission2.code
+        )
+        self.assertEqual(progress_as_dict1["exercises"][0]["passed_testcases"], 2)
+        self.assertEqual(progress_as_dict1["exercises"][0]["failed_testcases"], 0)
+
+        # turning in a submission makes that one appear in the dict
+        # submission1.turn_in()
+        # progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
+        # self.assertTrue(progress_as_dict1["exercises"][0]["turned_in"])
+        # self.assertEqual(
+        #     progress_as_dict1["exercises"][0]["submission"], submission1.code
+        # )
+        # self.assertEqual(progress_as_dict1["exercises"][0]["passed_testcases"], 1)
+        # self.assertEqual(progress_as_dict1["exercises"][0]["failed_testcases"], 1)
+
+        # show that submitting a newer solution with the same number of pased test cases
+        # overwrites the older one in the dict
+        submission3 = Submission.objects.create(
+            user=self.student1, exercise=e2, code="function a(n) { return n }"
+        )
+        progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
+        # self.assertFalse(progress_as_dict1["exercises"][1]["turned_in"])
+        self.assertEqual(
+            progress_as_dict1["exercises"][1]["submission"], submission3.code
+        )
+        self.assertEqual(progress_as_dict1["exercises"][1]["passed_testcases"], 2)
+        self.assertEqual(progress_as_dict1["exercises"][1]["failed_testcases"], 0)
+
+        submission4 = Submission.objects.create(
+            user=self.student1, exercise=e2, code="function a(n) { return n; }"
+        )
+        progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
+        # self.assertFalse(progress_as_dict1["exercises"][1]["turned_in"])
+        self.assertEqual(
+            progress_as_dict1["exercises"][1]["submission"], submission4.code
+        )
+        self.assertEqual(progress_as_dict1["exercises"][1]["passed_testcases"], 2)
+        self.assertEqual(progress_as_dict1["exercises"][1]["failed_testcases"], 0)
+
+        # making a newer, worse submission doesn't overwrite the one in the dict
+        submission5 = Submission.objects.create(
+            user=self.student1, exercise=e2, code="function a(n) { return ; }"
+        )
+        progress_as_dict1 = exam_progress.get_progress_as_dict(for_pdf=True)
+        # self.assertFalse(progress_as_dict1["exercises"][1]["turned_in"])
+        self.assertEqual(
+            progress_as_dict1["exercises"][1]["submission"], submission4.code
+        )
+        self.assertEqual(progress_as_dict1["exercises"][1]["passed_testcases"], 2)
+        self.assertEqual(progress_as_dict1["exercises"][1]["failed_testcases"], 0)
 
     def test_retrieve_assigned_items_sorted(self):
         exam_progress1 = ExamProgress(user=self.student1, exam=self.exam)
@@ -669,6 +786,7 @@ class ExamTestCase(TestCase):
         cat1 = Category.objects.create(
             exam=self.exam, name="cat1", amount=3, item_type="q", randomize=False
         )
+
         self.q1 = Question.objects.create(
             exam=self.exam, text="question1", category=cat1
         )
@@ -695,6 +813,46 @@ class ExamTestCase(TestCase):
     def get_post_request(self, api_url, body):
         factory = APIRequestFactory()
         return factory.post(api_url, body, format="json")
+
+    def test_exam_progress_with_exercises(self):
+        now = timezone.localtime(timezone.now())
+        tomorrow = now + timedelta(days=1)
+
+        exam = Exam.objects.create(
+            name="Test exam",
+            begin_timestamp=now,
+            end_timestamp=tomorrow,
+            draft=False,
+            created_by=self.teacher,
+        )
+        cat2 = Category.objects.create(
+            exam=exam, name="cat2", amount=2, item_type="e", randomize=False
+        )
+        e1 = Exercise.objects.create(
+            exam=exam, text="exercise1", category=cat2, min_passing_testcases=0
+        )
+        e2 = Exercise.objects.create(
+            exam=exam, text="exercise2", category=cat2, min_passing_testcases=0
+        )
+
+        exam_progress = ExamProgress.objects.create(user=self.student1, exam=exam)
+        self.assertTrue(exam_progress.is_initialized)
+        self.assertTrue(e1 in exam_progress.exercises.all())
+        self.assertEqual(exam_progress.completed_items_count, 0)
+
+        submission = Submission.objects.create(exercise=e1, user=self.student1, code="")
+        self.assertTrue(submission.is_eligible)
+        self.assertEqual(exam_progress.completed_items_count, 1)
+
+        submission2 = Submission.objects.create(
+            exercise=e2, user=self.student1, code=""
+        )
+        self.assertTrue(submission2.is_eligible)
+        self.assertEqual(exam_progress.completed_items_count, 2)
+
+        submission2.is_eligible = False
+        submission2.save()
+        self.assertEqual(exam_progress.completed_items_count, 1)
 
     def test_exam_progress_generation_and_cursor(self):
         """

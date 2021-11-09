@@ -49,11 +49,15 @@ class ExamProgressExercisesInline(admin.TabularInline):
 
 @admin.register(ExamProgress)
 class ExamProgressAdmin(admin.ModelAdmin):
-    pass
+    readonly_fields = ("begun_at",)
     inlines = [ExamProgressQuestionsInline, ExamProgressExercisesInline]
     # list_display = ("pdf_report",)
     # list_display_links = ("pdf_report",)
     # list_editable = ("pdf_report",)
+
+
+class TestCaseInline(admin.TabularInline):
+    model = TestCase
 
 
 @admin.register(Exercise)
@@ -62,6 +66,7 @@ class ExerciseAdmin(admin.ModelAdmin):
         "created",
         "updated",
     )
+    inlines = [TestCaseInline]
 
 
 @admin.register(TestCase)
@@ -74,7 +79,7 @@ class TestCaseAdmin(admin.ModelAdmin):
 
 @admin.register(Submission)
 class SubmissionAdmin(admin.ModelAdmin):
-    pass
+    readonly_fields = ("timestamp",)
 
 
 class AnswerInline(admin.TabularInline):
@@ -101,7 +106,10 @@ class AnswerAdmin(admin.ModelAdmin):
 
 @admin.register(GivenAnswer)
 class GivenAnswerAdmin(admin.ModelAdmin):
-    pass
+    readonly_fields = (
+        "timestamp",
+        "last_updated",
+    )
 
 
 @admin.register(ExamReport)

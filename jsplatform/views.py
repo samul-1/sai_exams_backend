@@ -132,6 +132,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         """
         context = {
             "request": request,
+            "force_student": True,  # get data as student even if the requesting user is a teacher
         }
 
         # determine if the item retrieved is a programming exercise or a question
@@ -159,6 +160,33 @@ class ExamViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
+
+    @action(detail=False, methods=["post"])
+    def test_submission(self, request, **kwargs):
+        """
+        Gets passed a one-off array of test cases and a code string, creates a submission
+        on the fly showing the outcome of the execution of the code on those test cases
+        and returns the result as a submission
+        """
+        from rest_framework import serializers
+
+        from .utils import run_code_in_vm
+
+        try:
+            testcase_serializer = TestCaseSerializer(
+                data=request.data["testcases"], many=True, context={"request": request}
+            )
+            testcase_serializer.is_valid(raise_exception=True)
+            outcome = run_code_in_vm(
+                request.data["code"], testcase_serializer.validated_data
+            )
+        except (KeyError, serializers.ValidationError):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = SubmissionSerializer(
+            Submission(details=outcome), context={"request": request}
+        )
+        return Response(serializer.data)
 
     @action(detail=True, methods=["post"])
     def mock(self, request, **kwargs):
@@ -244,12 +272,15 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def give_answer(self, request, **kwargs):
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
         user = request.user
-        if exam.closed:
+        if exam.closed and not request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
@@ -306,11 +337,14 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def withdraw_answer(self, request, **kwargs):
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
-        if exam.closed:
+        if exam.closed and not request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
@@ -352,13 +386,56 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
+    )
+    def draft_code(self, request, **kwargs):
+        exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
+        user = request.user
+        if exam.closed:
+            return Response(
+                status=status.HTTP_410_GONE,
+                data={"message": constants.MSG_EXAM_OVER},
+            )
+
+        try:
+            exam_progress = ExamProgress.objects.get(
+                user=user, exam=exam, is_done=False
+            )
+        except ExamProgress.DoesNotExist:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        current_exercise = exam_progress.current_item
+
+        if not isinstance(current_exercise, Exercise):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            through_row = exam_progress.examprogressexercisesthroughmodel_set.get(
+                exercise_id=current_exercise.pk
+            )
+            through_row.draft_code = request.data["code"]
+            through_row.save()
+        except KeyError:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def current_item(self, request, **kwargs):
         # get current exam
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
 
-        if exam.closed:
+        if exam.closed and not request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
@@ -369,6 +446,11 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam_progress, _ = ExamProgress.objects.get_or_create(
             user=request.user, exam=exam
         )
+        if self.request.user.is_teacher and self.request.data.get("restart", False):
+            # user is a teacher and is starting a new simulation; rebuild exam progress object
+            exam_progress.delete()
+            exam_progress = ExamProgress.objects.create(user=request.user, exam=exam)
+
         if exam_progress.is_done:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -384,13 +466,16 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def next_item(self, request, **kwargs):
         # get current exam
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
 
-        if exam.closed:
+        if exam.closed and not request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
@@ -412,13 +497,16 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def previous_item(self, request, **kwargs):
         # get current exam
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
 
-        if exam.closed:
+        if exam.closed and not request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
@@ -442,7 +530,10 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, ~TeachersOnly],
+        permission_classes=[
+            IsAuthenticated,
+            # ~TeachersOnly
+        ],
     )
     def end_exam(self, request, **kwargs):
         """
@@ -450,7 +541,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         """
         exam = get_object_or_404(self.get_queryset(), pk=kwargs.pop("pk"))
 
-        if exam.closed:
+        if exam.closed and not self.request.user.is_teacher:
             return Response(
                 status=status.HTTP_410_GONE,
                 data={"message": constants.MSG_EXAM_OVER},
@@ -572,23 +663,6 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.TeacherOrOwnedOnly]
     queryset = Submission.objects.all()
 
-    #! investigate, this is causing 403
-    # def dispatch(self, request, *args, **kwargs):
-    #     # this method prevents users from accessing `exercises/id/submissions` for exercises
-    #     # they don't have permission to see
-    #     parent_view = ExerciseViewSet.as_view({"get": "retrieve"})
-    #     original_method = request.method
-    #     # get the corresponding Exercise
-    #     request.method = "GET"
-    #     parent_kwargs = {"pk": kwargs["exercise_pk"]}
-
-    #     parent_response = parent_view(request, *args, **parent_kwargs)
-    #     if parent_response.exception:
-    #         # user tried accessing an exercise they didn't have permission to view
-    #         return parent_response
-    #     request.method = original_method
-    #     return super().dispatch(request, *args, **kwargs)
-
     # ! uncomment
     # def get_throttles(self):
     #     if self.request.method.lower() == "post":
@@ -623,16 +697,16 @@ class SubmissionViewSet(viewsets.ModelViewSet):
 
         serializer.save(exercise=exercise, user=self.request.user)
 
-    @action(detail=True, methods=["put"])
-    def turn_in(self, request, pk=None, **kwargs):
-        """
-        Calls turn_in() on specified submission
-        """
-        submission = get_object_or_404(Submission, pk=pk)
+    # @action(detail=True, methods=["put"])
+    # def turn_in(self, request, pk=None, **kwargs):
+    #     """
+    #     Calls turn_in() on specified submission
+    #     """
+    #     submission = get_object_or_404(Submission, pk=pk)
 
-        try:
-            submission.turn_in()
-        except NotEligibleForTurningIn:
-            return Response(status=status.HTTP_403_FORBIDDEN)
+    #     try:
+    #         submission.turn_in()
+    #     except NotEligibleForTurningIn:
+    #         return Response(status=status.HTTP_403_FORBIDDEN)
 
-        return Response(status=status.HTTP_200_OK)
+    #     return Response(status=status.HTTP_200_OK)
