@@ -967,13 +967,13 @@ class Submission(models.Model):
         public_tests = [t for t in self.details["tests"] if t["is_public"]]
 
         # count failed secret tests
-        failed_secret_tests = len(
-            [t for t in self.details["tests"] if not t["is_public"] and not t["passed"]]
-        )
+        # failed_secret_tests = len(
+        #     [t for t in self.details["tests"] if not t["is_public"] and not t["passed"]]
+        # )
 
         return {
             "tests": public_tests,
-            "failed_secret_tests": failed_secret_tests,
+            # "failed_secret_tests": failed_secret_tests,
         }
 
     def save(self, *args, **kwargs):

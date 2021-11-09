@@ -592,12 +592,12 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
         if self.context["request"].user.is_teacher:
             self.fields["testcases"] = TestCaseSerializer(many=True)
-            self.fields["solution"] = serializers.CharField()
+            self.fields["solution"] = serializers.CharField(required=False)
             self.fields["id"] = serializers.IntegerField(required=False)
         else:
             # only show public test cases to non-staff users
-            self.fields["public_testcases"] = TestCaseSerializer(
-                many=True, read_only=True
+            self.fields["testcases"] = TestCaseSerializer(
+                source="public_testcases", many=True, read_only=True
             )
         if not self.context["request"].user.is_teacher or self.context.get(
             "force_student", False
@@ -697,11 +697,14 @@ class SubmissionSerializer(serializers.ModelSerializer):
         self.fields["total_testcases"] = serializers.SerializerMethodField()
 
     def get_total_testcases(self, obj):
-        return (
-            obj.exercise.testcases.count()
-            if obj.exercise is not None
-            else len(obj.details.get("tests", []))
-        )
+        if obj.exercise is None:
+            # used in one-off evaluation of code for teachers
+            return len(obj.details.get("tests", []))
+
+        if self.context["request"].user.is_teacher:
+            return obj.exercise.testcases.count()
+        else:
+            return obj.exercise.testcases.filter(is_public=True).count()
 
     def create(self, validated_data):
         submission = Submission.objects.create(**validated_data)
