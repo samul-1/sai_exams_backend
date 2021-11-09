@@ -10,9 +10,10 @@ def preprocess_html_for_csv(html):
     Redacts the base64 data for <img> tags, removes <p> tags, and replaces <br /> tags with `\n`
     """
 
-    # remove this sequence that the frontend editor annoyingly appends to everything
     ret = (
-        html.replace("<p><br></p>", "")
+        html.replace(
+            "<p><br></p>", ""
+        )  # automatically added by the editor from frontend
         .replace("&nbsp;", " ")
         .replace("&lt;", "<")
         .replace("&gt;", ">")
