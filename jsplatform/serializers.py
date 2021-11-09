@@ -420,7 +420,7 @@ class ExerciseAdapterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Exercise
-        fields = ["text", "initial_code", "testcases"]
+        fields = ["text", "initial_code", "testcases", "solution"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -592,6 +592,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
         if self.context["request"].user.is_teacher:
             self.fields["testcases"] = TestCaseSerializer(many=True)
+            self.fields["solution"] = serializers.CharField()
             self.fields["id"] = serializers.IntegerField(required=False)
         else:
             # only show public test cases to non-staff users

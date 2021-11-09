@@ -472,6 +472,7 @@ class Exercise(models.Model):
     text = models.TextField()
     rendered_text = models.TextField(null=True, blank=True, default="")
     starting_code = models.TextField(blank=True)
+    solution = models.TextField(blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
     min_passing_testcases = models.PositiveIntegerField(default=0)
