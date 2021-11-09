@@ -592,7 +592,9 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
         if self.context["request"].user.is_teacher:
             self.fields["testcases"] = TestCaseSerializer(many=True)
-            self.fields["solution"] = serializers.CharField(required=False)
+            self.fields["solution"] = serializers.CharField(
+                required=False, allow_blank=True
+            )
             self.fields["id"] = serializers.IntegerField(required=False)
         else:
             # only show public test cases to non-staff users
