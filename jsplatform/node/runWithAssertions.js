@@ -78,6 +78,8 @@ function prettyPrintAssertionError (e) {
   )
 }
 
+const escapeBackTicks = t => t.replace(/`/g, '\\`')
+
 const userCode = process.argv[2]
 
 const assertions = JSON.parse(process.argv[3])
@@ -91,7 +93,9 @@ const assertionString = assertions
       a // put assertion into a try-catch block
     ) =>
       `
-        ran = {id: ${a.id}, assertion: '${a.assertion}', is_public: ${a.is_public}}
+        ran = {id: ${a.id}, assertion: \`${escapeBackTicks(
+        a.assertion
+      )}\`, is_public: ${a.is_public}}
         try {
             ${a.assertion} // run the assertion
             ran.passed = true // if no exception is thrown, the test case passed
