@@ -39,6 +39,7 @@ redis = "*"
 coverage = "*"
 sentry-sdk = "*"
 weasyprint = "==52.5"
+django-hashid-field = "*"
 
 [dev-packages]
 

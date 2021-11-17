@@ -17,6 +17,7 @@ from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import models
 from django.db.models import Count, Exists, F, JSONField, OuterRef, Q
 from django.utils import timezone
+from hashid_field import HashidAutoField
 from users.models import User
 
 from jsplatform.exceptions import (
@@ -67,6 +68,7 @@ class Exam(models.Model):
     An exam, represented by a name and a begin/end datetime
     """
 
+    id = HashidAutoField(primary_key=True)
     name = models.TextField()
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)

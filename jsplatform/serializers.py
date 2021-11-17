@@ -2,6 +2,7 @@ import sys
 
 from django.apps import apps
 from django.forms.models import model_to_dict
+from hashid_field.rest import HashidSerializerCharField
 from rest_framework import serializers
 from users.models import User
 from users.serializers import UserSerializer
@@ -26,6 +27,8 @@ class FrontendErrorSerializer(serializers.ModelSerializer):
 
 
 class ExamPreviewSerializer(serializers.ModelSerializer):
+    id = HashidSerializerCharField(source_field="jsplatform.Exam.id", read_only=True)
+
     class Meta:
         model = Exam
         fields = [
@@ -60,6 +63,8 @@ class ExamPreviewSerializer(serializers.ModelSerializer):
 
 
 class ExamSerializer(serializers.ModelSerializer):
+    id = HashidSerializerCharField(source_field="jsplatform.Exam.id", read_only=True)
+
     class Meta:
         model = Exam
         fields = [

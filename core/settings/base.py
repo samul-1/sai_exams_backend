@@ -31,6 +31,8 @@ ALLOWED_HOSTS = ["*"]
 
 AUTH_USER_MODEL = "users.User"
 
+HASHID_FIELD_SALT = os.environ.get("HASHID_SALT")
+
 # make this work in prod.py
 DEFAULT_RENDERER_CLASSES = ("rest_framework.renderers.JSONRenderer",)
 
