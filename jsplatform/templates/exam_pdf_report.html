@@ -153,9 +153,6 @@ iVBORw0KGgoAAAANSUhEUgAAAR4AAAEkCAYAAAD5KF4dAAAACXBIWXMAAAsTAAALEwEAmpwYAAAgAElE
 
             {% if user %}
               <h3 class="dont-bookmark">Sottomissione dello studente</h3>
-              {% if not exercise.turned_in %}
-                <p><strong>Lo studente non ha consegnato</strong> alcuna sottomissione, ma questa risulta la sua migliore sottomissione in termini di test case superati.</p>
-              {% endif %}
               <div class="answer-text-open">{{ exercise.submission }}</div>
               <h3 class="dont-bookmark">Risultato esecuzione ({{ exercise.passed_testcases }} test case superati, {{ exercise.failed_testcases }} falliti)</h3>
               {% if exercise.submission_details.error %}
