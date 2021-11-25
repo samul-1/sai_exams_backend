@@ -74,7 +74,7 @@ def tex_to_svg(formula):
                     "-r",
                     "esm",
                     os.environ.get(
-                        "NODE_TEX2SVG_URL", "training/tex-render/component/tex2svg"
+                        "NODE_TEX2SVG_URL", "jsplatform/tex-render/component/tex2svg"
                     ),
                     stripped_token,
                 ],
