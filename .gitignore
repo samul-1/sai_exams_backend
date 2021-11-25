@@ -4,3 +4,4 @@ elearning/db.cnf
 node_modules
 core/media
 htmlcov
+*.log
