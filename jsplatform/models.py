@@ -120,7 +120,7 @@ class Exam(models.Model):
         action = "unlock" if self.locked_by is None else "lock"
 
         message = {
-            "id": self.pk,
+            "id": str(self.pk),
             "type": "receive",
             "action": action,
         }
