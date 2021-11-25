@@ -101,7 +101,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "core.middleware.Http4xxErrorLogMiddleare"
+    "core.middleware.Http4xxErrorLogMiddleware"
     # "django.middleware.common.CommonMiddleware",
 ]
 
