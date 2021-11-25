@@ -101,7 +101,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "django.middleware.common.BrokenLinkEmailsMiddleware"
+    "core.middleware.Http4xxErrorLogMiddleare"
     # "django.middleware.common.CommonMiddleware",
 ]
 
@@ -231,6 +231,7 @@ USE_L10N = True
 USE_TZ = True
 
 ADMINS = [("Samuele", "s.bonini7@studenti.unipi.it")]
+MANAGERS = [("Samuele", "s.bonini7@studenti.unipi.it")]
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
