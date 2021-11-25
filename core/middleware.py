@@ -19,7 +19,7 @@ class Http4xxErrorLogMiddleware(MiddlewareMixin):
         if (
             str(response.status_code)[0] == "4"
             and response.status_code != 401
-            # and not settings.DEBUG
+            and not settings.DEBUG
         ):
             domain = request.get_host()
             path = request.get_full_path()

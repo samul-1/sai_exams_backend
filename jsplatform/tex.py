@@ -61,7 +61,12 @@ def tex_to_svg(formula):
 
             # prepend a backslash: this prevents issues if the TeX formula starts with a - character
             # which node would otherwise interpret as an argument (the node script will remove this backslash)
-            stripped_token = "\\" + stripped_token
+            # also convert the html entities for &, <, etc. to their LaTeX equivalents
+            stripped_token = "\\" + stripped_token.replace("&amp;", "& ").replace(
+                "&gt;", "\\gt "
+            ).replace("&lt;", "\\lt ").replace("&lte;", "\\le ").replace(
+                "&gte;", "\\ge "
+            )
 
             res = subprocess.check_output(
                 [
@@ -69,13 +74,20 @@ def tex_to_svg(formula):
                     "-r",
                     "esm",
                     os.environ.get(
-                        "NODE_TEX2SVG_URL", "jsplatform/tex-render/component/tex2svg"
+                        "NODE_TEX2SVG_URL", "training/tex-render/component/tex2svg"
                     ),
                     stripped_token,
                 ],
             )
             # strip off the "b'" and "\n'"
-            output_str += svg2img(str(res)[2:-3])
+            rendered_token = str(res)[2:-3]
+            svg_occurrence = rendered_token.find("<svg") + 4
+            rendered_token = (
+                rendered_token[:svg_occurrence]
+                + ' class="inline"'
+                + rendered_token[svg_occurrence:]
+            )
+            output_str += rendered_token
             if token[1] == "$":  # close <p> tag
                 output_str += "</p>"
         else:
