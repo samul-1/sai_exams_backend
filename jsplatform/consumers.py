@@ -7,6 +7,7 @@ from django.contrib.auth.models import AnonymousUser
 from users.models import User
 
 from .models import Exam
+from .serializers import ExamPreviewSerializer
 
 
 class ExamListConsumer(AsyncWebsocketConsumer):
@@ -52,14 +53,15 @@ class ExamListConsumer(AsyncWebsocketConsumer):
         )
 
     async def broadcast_unlock(self, exam_id):
+        new_data = await self.get_serialized_exam_data(exam_id)
         await self.channel_layer.group_send(
             self.group_name,
             {
                 "type": "exam.unlock",
                 "exam_id": exam_id,
+                "data": new_data,
             },
         )
-        # todo send new updated data for the exam
 
     """
     Handlers
@@ -90,6 +92,7 @@ class ExamListConsumer(AsyncWebsocketConsumer):
                 {
                     "msg_type": "unlock",
                     "exam_id": event["exam_id"],
+                    "data": event["data"],
                 }
             ),
         )
@@ -102,6 +105,11 @@ class ExamListConsumer(AsyncWebsocketConsumer):
         """
         exam = Exam.objects.get(pk=exam_id)
         return exam.created_by == self.user or self.user in exam.allowed_teachers.all()
+
+    @database_sync_to_async
+    def get_serialized_exam_data(self, exam_id):
+        exam = Exam.objects.get(pk=exam_id)
+        return ExamPreviewSerializer(exam).data
 
 
 class ExamLockConsumer(AsyncWebsocketConsumer):
@@ -135,23 +143,25 @@ class ExamLockConsumer(AsyncWebsocketConsumer):
         await self.lock_exam(self.exam_id)
         await self.accept()
 
-    async def disconnect(self, close_code):
+    async def websocket_disconnect(self, message):
         who_locked = await self.who_locked(self.exam_id)
         if who_locked == self.user:
             await self.unlock_exam(self.exam_id)
 
-        # broadcast a kill signal to handle the case where the user has multiple
-        # tabs or windows open
-        await self.channel_layer.group_send(
-            self.group_name,
-            {
-                "type": "kill.connection",
-            },
-        )
+            # broadcast a kill signal to handle the case where the user has multiple
+            # tabs or windows open
+            await self.channel_layer.group_send(
+                self.group_name,
+                {"type": "kill.connection", "target_id": self.user.pk},
+            )
 
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        await super().websocket_disconnect(message)
 
     async def kill_connection(self, event):
+        if self.user.pk != event["target_id"]:
+            # only send kill signal to target user
+            return
         await self.send(
             text_data=json.dumps(
                 {
