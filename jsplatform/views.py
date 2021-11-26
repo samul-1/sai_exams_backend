@@ -405,6 +405,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 user=user, exam=exam, is_done=False
             )
         except ExamProgress.DoesNotExist:
+            logging.warning(f"draft_code for exam progress that does not exist: {user}")
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         current_exercise = exam_progress.current_item
