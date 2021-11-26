@@ -575,7 +575,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         report, created = ExamReport.objects.get_or_create(exam=exam)
         if created or (not report.zip_report_archive and not report.in_progress):
             # report hasn't been generated yet - schedule its creation
-            generate_zip_task.delay(exam_id=exam.pk, user_id=request.user.pk)
+            generate_zip_task.delay(exam_id=str(exam.pk), user_id=request.user.pk)
             return Response(status=status.HTTP_202_ACCEPTED)
 
         if report.in_progress:
@@ -689,6 +689,17 @@ class SubmissionViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(user=user)
 
         return queryset
+
+    def create(self, request, *args, **kwargs):
+        exercise_id = self.kwargs["exercise_pk"]
+
+        exercise = get_object_or_404(Exercise, pk=exercise_id)
+        if exercise.exam.closed and not request.user.is_teacher:
+            return Response(
+                status=status.HTTP_410_GONE,
+                data={"message": constants.MSG_EXAM_OVER},
+            )
+        return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         # exercise_id = self.request.query_params.get("exercise_id", None)
