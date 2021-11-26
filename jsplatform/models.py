@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_pdf_upload_path(instance, filename):
-    return "exam_reports/{0}/{1}".format(instance.exam.pk, filename)
+    return "exam_reports/{0}/{1}".format(str(instance.exam.pk), filename)
 
 
 class FrontendError(models.Model):
