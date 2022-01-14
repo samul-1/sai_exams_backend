@@ -108,21 +108,21 @@ MIDDLEWARE = [
 DJOSER = {
     "SERIALIZERS": {"current_user": "users.serializers.UserSerializer"},
     # "HIDE_USERS": True,
-    "PERMISSIONS": {
-        "activation": ["users.permissions.Deny"],
-        "password_reset": ["users.permissions.Deny"],
-        "password_reset_confirm": ["users.permissions.Deny"],
-        "set_password": ["users.permissions.Deny"],
-        "username_reset": ["users.permissions.Deny"],
-        "username_reset_confirm": ["users.permissions.Deny"],
-        "set_username": ["users.permissions.Deny"],
-        "user_create": ["users.permissions.Deny"],
-        "user_delete": ["users.permissions.Deny"],
-        "user": ["users.permissions.ReadOnly"],
-        "user_list": ["users.permissions.Deny"],
-        "token_create": ["users.permissions.Deny"],
-        "token_destroy": ["users.permissions.Deny"],
-    },
+    # "PERMISSIONS": {
+    #     "activation": ["users.permissions.Deny"],
+    #     "password_reset": ["users.permissions.Deny"],
+    #     "password_reset_confirm": ["users.permissions.Deny"],
+    #     "set_password": ["users.permissions.Deny"],
+    #     "username_reset": ["users.permissions.Deny"],
+    #     "username_reset_confirm": ["users.permissions.Deny"],
+    #     "set_username": ["users.permissions.Deny"],
+    #     "user_create": ["users.permissions.Deny"],
+    #     "user_delete": ["users.permissions.Deny"],
+    #     "user": ["users.permissions.ReadOnly"],
+    #     "user_list": ["users.permissions.Deny"],
+    #     "token_create": ["users.permissions.Deny"],
+    #     "token_destroy": ["users.permissions.Deny"],
+    # },
 }
 
 ROOT_URLCONF = "core.urls"
