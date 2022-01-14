@@ -15,3 +15,12 @@ class UserSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
         )
+
+        readonly_fields = [
+            "id",
+            "email",
+            "username",
+            "is_teacher",
+            "first_name",
+            "last_time",
+        ]
