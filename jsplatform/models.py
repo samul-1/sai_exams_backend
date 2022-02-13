@@ -315,7 +315,9 @@ class ExamReport(models.Model):
     csv_report = models.FileField(upload_to=get_pdf_upload_path, null=True, blank=True)
 
     def __str__(self):
-        return self.exam.name
+        if self.exam is not None:
+            return self.exam.name
+        return "---"
 
     def save(self, *args, **kwargs):
         if not self.exam.closed:
@@ -785,7 +787,9 @@ class ExamProgress(models.Model):
             else:  # open question
                 q["answer_text"] = (
                     (
-                        escape_unsafe_text(given_answers[0].text)
+                        given_answers[
+                            0
+                        ].text  # disabled to allow for images - escape_unsafe_text(given_answers[0].text)
                         if for_pdf
                         else preprocess_fn(given_answers[0].text)
                     )
