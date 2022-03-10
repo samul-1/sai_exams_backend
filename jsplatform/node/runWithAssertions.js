@@ -101,7 +101,8 @@ const userCode = tsCompile(process.argv[2], tsConfig);
 
 const assertions = JSON.parse(process.argv[3]);
 
-const outputArrIdentifier = getRandomIdentifier(20);
+const outputArrIdentifier = getRandomIdentifier(32);
+const testDetailsObjIdentifier = getRandomIdentifier(32);
 
 // turn array of strings representing assertions to a series of try-catch blocks
 //  where those assertions are evaluated and the result is pushed to an array
@@ -110,21 +111,23 @@ const assertionString = assertions
   .map(
     (a) =>
       `
-      ran = {id: ${a.id}, assertion: \`${escapeBackTicks(
-        a.assertion
-      )}\`, is_public: ${a.is_public}}
+      ${testDetailsObjIdentifier} = {id: ${
+        a.id
+      }, assertion: \`${escapeBackTicks(a.assertion)}\`, is_public: ${
+        a.is_public
+      }}
         try {
             ${a.assertion} // run the assertion
-            ran.passed = true // if no exception is thrown, the test case passed
+            ${testDetailsObjIdentifier}.passed = true // if no exception is thrown, the test case passed
         } catch(e) {
-            ran.passed = false
+            ${testDetailsObjIdentifier}.passed = false
             if(e instanceof AssertionError) {
-                ran.error = prettyPrintAssertionError(e)
+                ${testDetailsObjIdentifier}.error = prettyPrintAssertionError(e)
             } else {
-                ran.error = prettyPrintError(e)
+                ${testDetailsObjIdentifier}.error = prettyPrintError(e)
             }
         }
-        ${outputArrIdentifier}[${outputArrIdentifier}.length] = ran // push test case results
+        ${outputArrIdentifier}[${outputArrIdentifier}.length] = ${testDetailsObjIdentifier} // push test case results
     `
   )
   .reduce((a, b) => a + b, ""); // reduce array of strings to a string
@@ -143,6 +146,7 @@ ${outputArrIdentifier}`;
 
 try {
   const outcome = safeVm.run(runnableProgram); // run program
+  //console.log(JSON.stringify({ error: runnableProgram })); -- for debugging, to get the generated program
   console.log(JSON.stringify({ tests: outcome })); // output outcome so Django can collect it
 } catch (e) {
   // an error occurred before any test cases could be ran
