@@ -1,9 +1,12 @@
 /*
 usage: 
 node runWithAssertions.js programCode assertions
+
 arguments:
 programCode is a STRING containing a js program
 assertions is an ARRAY of strings representing assertions made using node assertions
+
+
 output: 
 an array printed to the console (and collected by Django via subprocess.check_output()) where each
 entry corresponds to an assertion and is an object:
@@ -25,31 +28,11 @@ and error is only present if the assertion failed
 // a sandboxed, secure virtual machine
 const { VM } = require("vm2");
 const assert = require("assert");
-const ts = require("typescript");
 const AssertionError = require("assert").AssertionError;
 const timeout = 1000;
-const tsConfig = require("./tsconfig.json");
-
-const getRandomIdentifier = (length) => {
-  let result = "";
-  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-  const charactersLength = characters.length;
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-  }
-  return result;
-};
-
-function tsCompile(source, options = null) {
-  // Default options -- you could also perform a merge, or use the project tsconfig.json
-  if (null === options) {
-    options = { compilerOptions: { module: ts.ModuleKind.CommonJS } };
-  }
-  return ts.transpileModule(source, options).outputText;
-}
 
 // instantiation of the vm that'll run the user-submitted program
-const safeVm = new VM({
+const safevm = new VM({
   timeout, // set timeout to prevent endless loops from running forever
   sandbox: {
     prettyPrintError,
@@ -72,7 +55,7 @@ function prettyPrintError(e) {
 
   const formattedStr = rawStr.replace(
     /(.*)vm.js:([0-9]+):?([0-9]+)?(.*)/g,
-    function (_a, _b, c, d) {
+    function (a, b, c, d) {
       // actual line of the error is one less than what's detected due to an
       // additional line of code injected in the vm (hence the -1)
       return `on line ${parseInt(c) - 1}` + (d ? `, at position ${d})` : "");
@@ -97,20 +80,20 @@ function prettyPrintAssertionError(e) {
 
 const escapeBackTicks = (t) => t.replace(/`/g, "\\`");
 
-const userCode = tsCompile(process.argv[2], tsConfig);
+const userCode = process.argv[2];
 
 const assertions = JSON.parse(process.argv[3]);
-
-const outputArrIdentifier = getRandomIdentifier(20);
 
 // turn array of strings representing assertions to a series of try-catch blocks
 //  where those assertions are evaluated and the result is pushed to an array
 // the resulting string will be inlined into the program that the vm will run
 const assertionString = assertions
   .map(
-    (a) =>
+    (
+      a // put assertion into a try-catch block
+    ) =>
       `
-      ran = {id: ${a.id}, assertion: \`${escapeBackTicks(
+        ran = {id: ${a.id}, assertion: \`${escapeBackTicks(
         a.assertion
       )}\`, is_public: ${a.is_public}}
         try {
@@ -124,25 +107,42 @@ const assertionString = assertions
                 ran.error = prettyPrintError(e)
             }
         }
-        ${outputArrIdentifier}[${outputArrIdentifier}.length] = ran // push test case results
+        output_wquewoajfjoiwqi.push(ran)
     `
   )
   .reduce((a, b) => a + b, ""); // reduce array of strings to a string
 
-const runnableProgram = `const ${outputArrIdentifier} = [];
+// support for executing the user-submitted program
+// contains the user code and a series of try-catch blocks
+// where assertions are ran against the user code; the program evaluates to an array of
+// outcomes resulting from those assertions
+const runnableProgram = `const output_wquewoajfjoiwqi = []; const arr_jiodferwqjefio = Array; const push_djiowqufewio = Array.prototype.push; const shift_dfehwioioefn = Array.prototype.shift
 ${userCode}
 // USER CODE ENDS HERE
-if(Object.isFrozen(${outputArrIdentifier})) {
+
+// restore array prototype and relevant array methods in case user tampered with them
+Array = arr_jiodferwqjefio
+Array.prototype.push = push_djiowqufewio;
+Array.prototype.shift = shift_dfehwioioefn;
+
+if(Object.isFrozen(output_wquewoajfjoiwqi)) {
     // abort if user intentionally froze the output array
-    throw new Error("Internal error")
+    throw new Error("Malicious user code froze vm's output array")
 }
+
+while(output_wquewoajfjoiwqi.length) {
+    output_wquewoajfjoiwqi.shift() // make sure the output array is empty
+}
+
 // inline assertions
+
 ${assertionString}
+
 // output outcome object to console
-${outputArrIdentifier}`;
+output_wquewoajfjoiwqi`;
 
 try {
-  const outcome = safeVm.run(runnableProgram); // run program
+  const outcome = safevm.run(runnableProgram); // run program
   console.log(JSON.stringify({ tests: outcome })); // output outcome so Django can collect it
 } catch (e) {
   // an error occurred before any test cases could be ran
