@@ -5,7 +5,7 @@ import subprocess
 from django.core.files.base import ContentFile
 from django.template import Context
 from django.template.loader import get_template
-#from weasyprint import HTML
+from weasyprint import HTML
 
 from .tex import tex_to_svg
 
