@@ -581,6 +581,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
             "starting_code",
             "min_passing_testcases",
             "num_appearances",
+            "typescript"
         ]
 
     def __init__(self, *args, **kwargs):

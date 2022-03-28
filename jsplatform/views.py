@@ -176,9 +176,10 @@ class ExamViewSet(viewsets.ModelViewSet):
             testcase_serializer = TestCaseSerializer(
                 data=request.data["testcases"], many=True, context={"request": request}
             )
+            use_ts = request.data["typescript"]
             testcase_serializer.is_valid(raise_exception=True)
             outcome = run_code_in_vm(
-                request.data["code"], testcase_serializer.validated_data
+                request.data["code"], testcase_serializer.validated_data, use_ts
             )
         except (KeyError, serializers.ValidationError):
             return Response(status=status.HTTP_400_BAD_REQUEST)

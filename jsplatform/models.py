@@ -483,6 +483,7 @@ class Exercise(models.Model):
     creator = models.ForeignKey(
         User, null=True, blank=True, on_delete=models.SET_NULL, related_name="exercises"
     )
+    typescript = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["pk"]
@@ -1010,7 +1011,7 @@ class Submission(models.Model):
             for t in testcases
         ]
 
-        outcome = run_code_in_vm(self.code, testcases_json)
+        outcome = run_code_in_vm(self.code, testcases_json, self.exercise.typescript)
 
         passed_testcases = 0
         # count passed tests
