@@ -4,6 +4,8 @@ node runWithAssertions.js programCode assertions
 arguments:
 programCode is a STRING containing a js program
 assertions is an ARRAY of strings representing assertions made using node assertions
+useJs? (default false)
+
 output: 
 an array printed to the console (and collected by Django via subprocess.check_output()) where each
 entry corresponds to an assertion and is an object:
@@ -25,84 +27,49 @@ and error is only present if the assertion failed
 // a sandboxed, secure virtual machine
 const { VM } = require("vm2");
 const assert = require("assert");
-const ts = require("typescript");
 const AssertionError = require("assert").AssertionError;
 const timeout = 1000;
-const tsConfig = require("./tsconfig.json");
+const compileTsToJs = require("./tsCompilation").tsToJs;
+const utils = require("./utils");
 
-const getRandomIdentifier = (length) => {
-  let result = "";
-  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-  const charactersLength = characters.length;
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-  }
-  return result;
-};
-
-function tsCompile(source, options = null) {
-  // Default options -- you could also perform a merge, or use the project tsconfig.json
-  if (null === options) {
-    options = { compilerOptions: { module: ts.ModuleKind.CommonJS } };
-  }
-  return ts.transpileModule(source, options).outputText;
-}
+// rename assert and AssertionError inside generated program to make them inaccessible to user
+const assertIdentifier = utils.getRandomIdentifier(20);
+const assertionErrorIdentifier = utils.getRandomIdentifier(20);
 
 // instantiation of the vm that'll run the user-submitted program
 const safeVm = new VM({
   timeout, // set timeout to prevent endless loops from running forever
   sandbox: {
-    prettyPrintError,
-    prettyPrintAssertionError,
-    assert,
-    AssertionError,
+    prettyPrintError: utils.prettyPrintError,
+    prettyPrintAssertionError: utils.prettyPrintAssertionError,
+    [assertIdentifier]: assert,
+    [assertionErrorIdentifier]: AssertionError,
   },
 });
 
-function prettyPrintError(e) {
-  // removes information about the stack of the vm from the error message and only
-  // shows the info relevant to the user code
-  const tokens = e.stack.split(/(.*)at (new Script(.*))?vm.js:([0-9]+)(.*)/);
-  const rawStr = tokens[0]; // error message
+const useJs = JSON.parse(process.argv[4] ?? "false");
 
-  if (rawStr.match(/execution timed out/)) {
-    // time out: no other information available
-    return `Execution timed out after ${timeout} ms`;
+let userCode;
+
+if (useJs) {
+  userCode = process.argv[2];
+} else {
+  const compilationResult = compileTsToJs(process.argv[2]);
+  if (compilationResult.compilationErrors.length > 0) {
+    console.log(
+      JSON.stringify({
+        compilation_errors: compilationResult.compilationErrors,
+      })
+    );
+    process.exit(0);
   }
-
-  const formattedStr = rawStr.replace(
-    /(.*)vm.js:([0-9]+):?([0-9]+)?(.*)/g,
-    function (_a, _b, c, d) {
-      // actual line of the error is one less than what's detected due to an
-      // additional line of code injected in the vm (hence the -1)
-      return `on line ${parseInt(c) - 1}` + (d ? `, at position ${d})` : "");
-    }
-  );
-  return formattedStr;
+  userCode = compilationResult.compiledCode;
 }
-
-// does the same as prettyPrintError(), but it's specifically designed to work with AssertionErrors
-function prettyPrintAssertionError(e) {
-  const expected = e.expected;
-  const actual = e.actual;
-  const [errMsg, _] = e.stack.split("\n");
-  return (
-    errMsg +
-    " expected value " +
-    JSON.stringify(expected) +
-    ", but got " +
-    JSON.stringify(actual)
-  );
-}
-
-const escapeBackTicks = (t) => t.replace(/`/g, "\\`");
-
-const userCode = tsCompile(process.argv[2], tsConfig);
 
 const assertions = JSON.parse(process.argv[3]);
 
-const outputArrIdentifier = getRandomIdentifier(32);
-const testDetailsObjIdentifier = getRandomIdentifier(32);
+const outputArrIdentifier = utils.getRandomIdentifier(32);
+const testDetailsObjIdentifier = utils.getRandomIdentifier(32);
 
 // turn array of strings representing assertions to a series of try-catch blocks
 //  where those assertions are evaluated and the result is pushed to an array
@@ -113,15 +80,18 @@ const assertionString = assertions
       `
       ${testDetailsObjIdentifier} = {id: ${
         a.id
-      }, assertion: \`${escapeBackTicks(a.assertion)}\`, is_public: ${
+      }, assertion: \`${utils.escapeBackTicks(a.assertion)}\`, is_public: ${
         a.is_public
       }}
         try {
-            ${a.assertion} // run the assertion
+            ${a.assertion.replace(
+              "assert",
+              assertIdentifier
+            )} // run the assertion
             ${testDetailsObjIdentifier}.passed = true // if no exception is thrown, the test case passed
         } catch(e) {
             ${testDetailsObjIdentifier}.passed = false
-            if(e instanceof AssertionError) {
+            if(e instanceof ${assertionErrorIdentifier}) {
                 ${testDetailsObjIdentifier}.error = prettyPrintAssertionError(e)
             } else {
                 ${testDetailsObjIdentifier}.error = prettyPrintError(e)
@@ -150,5 +120,5 @@ try {
   console.log(JSON.stringify({ tests: outcome })); // output outcome so Django can collect it
 } catch (e) {
   // an error occurred before any test cases could be ran
-  console.log(JSON.stringify({ error: prettyPrintError(e) }));
+  console.log(JSON.stringify({ error: utils.prettyPrintError(e) }));
 }

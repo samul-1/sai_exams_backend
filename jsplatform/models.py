@@ -1014,7 +1014,7 @@ class Submission(models.Model):
 
         passed_testcases = 0
         # count passed tests
-        if "error" not in outcome.keys():
+        if "error" not in outcome.keys() and "compilation_errors" not in outcome.keys():
             for testcase in outcome["tests"]:
                 if testcase["passed"]:
                     passed_testcases += 1

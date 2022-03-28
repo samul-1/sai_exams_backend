@@ -2,7 +2,7 @@
     "compilerOptions": {
         "target": "ESNEXT",
         "module": "ESNext",
-        "noEmit": true,
+        "noEmit": false,
         "strict": true,
         "moduleResolution": "node",
         "typeRoots": [
