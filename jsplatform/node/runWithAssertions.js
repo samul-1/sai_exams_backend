@@ -85,7 +85,7 @@ const assertionString = assertions
       }}
         try {
             ${a.assertion.replace(
-              "assert",
+              /assert/g,
               assertIdentifier
             )} // run the assertion
             ${testDetailsObjIdentifier}.passed = true // if no exception is thrown, the test case passed
